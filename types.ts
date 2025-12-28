@@ -36,13 +36,22 @@ export interface Course {
   studentCount?: number;
 }
 
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  date: string;
+  note?: string;
+}
+
 export interface Invoice {
   id: string;
   student: string;
-  studentId?: string; // Внутрішній ID студента
+  studentId?: string;
+  instructorName?: string; // Додано поле викладача
   course: string;
   total: number;
-  paid: number;
+  paid: number; 
   status: 'paid' | 'partial' | 'unpaid' | 'overdue';
   dueDate: string;
+  payments: PaymentRecord[];
 }

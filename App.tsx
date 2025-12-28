@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(() => {
     return (localStorage.getItem('app_lang') as Language) || 'uk';
   });
-  const [role, setRole] = useState<UserRole>('guest'); // За замовчуванням тепер Гість
+  const [role, setRole] = useState<UserRole>('guest');
   const [activeTab, setActiveTab] = useState<TabType>('showcase');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentStudentName] = useState('Марія Іванова'); 
@@ -28,7 +28,6 @@ const App: React.FC = () => {
     localStorage.setItem('app_lang', language);
   }, [language]);
 
-  // Зміна вкладки при зміні ролі
   useEffect(() => {
     if (role === 'guest') setActiveTab('showcase');
     else if (role === 'specialist') setActiveTab('specialist-dashboard');
@@ -105,14 +104,51 @@ const App: React.FC = () => {
   ]);
 
   const [invoices, setInvoices] = useState<Invoice[]>([
-    { id: 'INV-001', student: 'Марія Іванова', course: 'InLei® Lash Filler 25.9', total: 500, paid: 200, status: 'partial', dueDate: '2025-06-15' },
-    { id: 'INV-002', student: 'Олена Петренко', course: 'Magic Lash Geometry', total: 450, paid: 0, status: 'unpaid', dueDate: '2025-05-20' },
+    { 
+      id: 'INV-001', 
+      student: 'Марія Іванова', 
+      instructorName: 'Маргарита Кузнецова',
+      course: 'InLei® Lash Filler 25.9', 
+      total: 550, 
+      paid: 200, 
+      status: 'partial', 
+      dueDate: '2025-06-15',
+      payments: [
+        { id: 'p1', amount: 100, date: '2025-02-10', note: 'Передплата готівкою' },
+        { id: 'p2', amount: 100, date: '2025-02-25', note: 'Другий внесок' }
+      ]
+    },
+    { 
+      id: 'INV-002', 
+      student: 'Олена Петренко', 
+      instructorName: 'Маргарита Кузнецова',
+      course: 'Magic Lash Geometry', 
+      total: 450, 
+      paid: 20, 
+      status: 'partial', 
+      dueDate: '2025-05-20',
+      payments: [
+        { id: 'p3', amount: 20, date: '2025-03-01', note: 'Бронювання місця' }
+      ]
+    },
+    { 
+      id: 'INV-003', 
+      student: 'Марія Іванова', 
+      instructorName: 'Анна Сидорчук',
+      course: 'Lash Adhesive Master', 
+      total: 300, 
+      paid: 300, 
+      status: 'paid', 
+      dueDate: '2025-04-10',
+      payments: [
+        { id: 'p4', amount: 300, date: '2025-01-15', note: 'Повна оплата' }
+      ]
+    },
   ]);
 
   const sidebarItems = useMemo(() => {
     const allItems = [
       { id: 'showcase', icon: ShoppingBag, label: t.showcase, roles: ['guest', 'student', 'specialist', 'admin'] },
-      // { id: 'guest-chat', icon: MessageSquare, label: t.guestChat, roles: ['guest', 'student', 'specialist', 'admin'] }, // Приховано за запитом
       { id: 'specialist-dashboard', icon: LayoutDashboard, label: t.specialistHub, roles: ['specialist', 'admin'] },
       { id: 'my-courses', icon: UserCircle, label: t.myDashboard, roles: ['student'] },
       { id: 'live-assistant', icon: Mic, label: t.aiCoach, roles: ['student', 'admin'] },
@@ -148,7 +184,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0A0C10] text-[#F0F2F5] overflow-hidden">
       <aside className={`${isSidebarOpen ? 'w-80' : 'w-24'} bg-[#12141C] border-r border-[#1F232B] flex flex-col transition-all duration-300 z-20 shadow-[10px_0_30px_rgba(0,0,0,0.5)]`}>
-        <div className="p-6 border-b border-[#1F232B] flex items-center justify-between">
+        <div className="p-6 border-b border-[#1F232B] flex items-center justify-between shrink-0">
           {isSidebarOpen && (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black shadow-lg shadow-purple-500/20">M</div>
@@ -160,7 +196,7 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <nav className="p-4 space-y-2 flex-shrink-0">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
           {sidebarItems.map((item) => (
             <button 
               key={item.id}
@@ -178,44 +214,44 @@ const App: React.FC = () => {
               {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-[0.15em]">{item.label}</span>}
             </button>
           ))}
+
+          {isSidebarOpen && role !== 'guest' && (
+            <div className="border-t border-[#1F232B] mt-4 pt-6 text-left">
+              <div className="px-2 flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-black uppercase text-gray-600 tracking-widest flex items-center gap-2">
+                  {role === 'student' ? <GraduationCap size={14} className="text-gray-700" /> : <Layers size={14} />} 
+                  {role === 'student' ? t.myPrograms : t.management}
+                </h3>
+                {(role === 'admin' || role === 'specialist') && (
+                  <button onClick={handleAddCourse} className="p-1.5 bg-[#1F232B] hover:bg-purple-600 rounded-lg text-gray-400 hover:text-white transition-all">
+                    <Plus size={14} />
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1">
+                {courses.map(course => (
+                  <button
+                    key={course.id}
+                    onClick={() => { setActiveCourseId(course.id); setActiveTab('courses-admin'); }}
+                    className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative group ${
+                      activeCourseId === course.id && activeTab === 'courses-admin'
+                        ? (course.isExtensionCourse ? 'bg-purple-500/5 border-purple-500/20 text-purple-400' : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.05)]') 
+                        : 'border-transparent text-gray-500 hover:bg-[#1F232B] hover:text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)] ${course.isExtensionCourse ? 'bg-purple-500' : 'bg-yellow-500'}`} />
+                      <span className="text-[10px] font-black uppercase tracking-widest truncate block leading-none">{course.title}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
-        {isSidebarOpen && role !== 'guest' && (
-          <div className="flex-1 flex flex-col min-h-0 border-t border-[#1F232B] mt-2 pt-6 text-left">
-            <div className="px-6 flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-black uppercase text-gray-600 tracking-widest flex items-center gap-2">
-                {role === 'student' ? <GraduationCap size={14} className="text-gray-700" /> : <Layers size={14} />} 
-                {role === 'student' ? t.myPrograms : t.management}
-              </h3>
-              {(role === 'admin' || role === 'specialist') && (
-                <button onClick={handleAddCourse} className="p-1.5 bg-[#1F232B] hover:bg-purple-600 rounded-lg text-gray-400 hover:text-white transition-all">
-                  <Plus size={14} />
-                </button>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
-              {courses.map(course => (
-                <button
-                  key={course.id}
-                  onClick={() => { setActiveCourseId(course.id); setActiveTab('courses-admin'); }}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative group ${
-                    activeCourseId === course.id && activeTab === 'courses-admin'
-                      ? (course.isExtensionCourse ? 'bg-purple-500/5 border-purple-500/20 text-purple-400' : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.05)]') 
-                      : 'border-transparent text-gray-500 hover:bg-[#1F232B] hover:text-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)] ${course.isExtensionCourse ? 'bg-purple-500' : 'bg-yellow-500'}`} />
-                    <span className="text-[10px] font-black uppercase tracking-widest truncate block leading-none">{course.title}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {isSidebarOpen && (
-          <div className="p-6 border-t border-[#1F232B]">
+          <div className="p-6 border-t border-[#1F232B] shrink-0">
             <div className="bg-[#0A0C10] p-4 rounded-3xl border border-[#1F232B] flex items-center gap-4 group cursor-pointer hover:border-purple-500/30 transition-all">
               <div className="w-12 h-12 bg-[#12141C] border border-[#1F232B] rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
                 {React.createElement(roleMeta[role].icon, { size: 24, className: roleMeta[role].color })}
@@ -229,7 +265,7 @@ const App: React.FC = () => {
         )}
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 h-full">
         <header className="h-16 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-10 shrink-0 shadow-sm relative z-10">
           <div className="flex items-center gap-3">
              <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse" />
@@ -263,30 +299,24 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 min-h-0 flex flex-col relative">
           {activeTab === 'showcase' && <Showcase lang={language} onPurchase={(inv) => setInvoices([inv, ...invoices])} onNavigate={setActiveTab} />}
           {activeTab === 'guest-chat' && <GuestChat lang={language} courses={courses} onPurchase={(inv) => setInvoices([inv, ...invoices])} onNavigate={setActiveTab} />}
-          
           {activeTab === 'specialist-dashboard' && (role === 'specialist' || role === 'admin') && (
             <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} />
           )}
-          
           {activeTab === 'my-courses' && role === 'student' && (
             <StudentDashboard lang={language} activeCourse={activeCourse} />
           )}
-          
           {activeTab === 'courses-admin' && (role === 'admin' || role === 'specialist') && (
             <CourseEditor lang={language} course={activeCourse} onUpdate={(u) => setCourses(courses.map(c => c.id === u.id ? u : c))} />
           )}
-          
           {activeTab === 'finance' && (role !== 'guest') && (
             <FinanceHub lang={language} invoices={invoices} setInvoices={setInvoices} userRole={role} studentName={currentStudentName} />
           )}
-          
           {activeTab === 'ai-lab' && (role === 'admin' || role === 'specialist') && (
             <AILab lang={language} />
           )}
-          
           {activeTab === 'live-assistant' && (role === 'admin' || role === 'student') && (
             <LiveAssistant lang={language} activeCourse={activeCourse} studentName={currentStudentName} />
           )}

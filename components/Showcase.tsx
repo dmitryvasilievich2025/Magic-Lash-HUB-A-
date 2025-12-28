@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, Star, ArrowRight, Zap, ShieldCheck, Sparkles, 
@@ -86,6 +85,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
     setProgress(0);
     
     if (selectedProduct) {
+      // Fix: Додано обов'язкове поле 'payments' для відповідності інтерфейсу Invoice
       const newInvoice: Invoice = {
         id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
         student: userName || (lang === 'uk' ? 'Новий Спеціаліст' : 'New Specialist'),
@@ -93,7 +93,8 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
         total: selectedProduct.price || 0,
         paid: selectedProduct.price || 0,
         status: 'paid',
-        dueDate: new Date().toISOString().split('T')[0]
+        dueDate: new Date().toISOString().split('T')[0],
+        payments: []
       };
       onPurchase(newInvoice);
     }
