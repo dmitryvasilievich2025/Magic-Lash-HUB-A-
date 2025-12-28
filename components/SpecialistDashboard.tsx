@@ -1,8 +1,9 @@
 
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, TrendingUp, AlertCircle, Sparkles, ArrowRight, 
-  MessageSquare, Layers, DollarSign, Clock, BarChart3, Star, Edit3, Calendar, ShieldCheck, Zap
+  MessageSquare, Layers, DollarSign, Clock, BarChart3, Star, Edit3, Calendar, ShieldCheck, Zap,
+  Plus, X, UserPlus, Mail, Phone, Info, Target, ShoppingBag
 } from 'lucide-react';
 import { Course, Invoice, TabType, Language } from '../types';
 
@@ -12,19 +13,56 @@ interface Props {
   lang: Language;
   onNavigate: (tab: TabType) => void;
   onSetActiveCourse: (id: string) => void;
+  onAddInvoice: (inv: Invoice) => void; // Додано для створення інвойсу при реєстрації
 }
 
-const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavigate, onSetActiveCourse }) => {
+const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavigate, onSetActiveCourse, onAddInvoice }) => {
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  
+  // Стан форми нового учня
+  const [newStudent, setNewStudent] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    source: 'instagram',
+    courseId: courses[0]?.id || '',
+    amount: '',
+    comments: ''
+  });
+
   const t = useMemo(() => ({
     uk: {
       badge: 'Професійний HUB Управління',
       title: 'МАЙСТЕРНЯ РОЗВИТКУ',
       subtitle: 'Управляйте своїми напрямками, відстежуйте успіхи студентів та контролюйте фінансові потоки в реальному часі.',
+      addStudent: 'Додати учня',
       stats: {
         revenue: 'Каса (Місяць)',
         students: 'Активні Студенти',
         debt: 'Заборгованість',
         rating: 'Рейтинг HUB'
+      },
+      modal: {
+        title: 'Реєстрація у HUB',
+        sub: 'Створення облікового запису та фінансової карти',
+        firstName: "Ім'я",
+        lastName: 'Прізвище',
+        email: 'Email (для входу)',
+        phone: 'Телефон',
+        source: 'Звідки дізнався?',
+        sourceOptions: {
+          instagram: 'Instagram',
+          whatsapp: 'WhatsApp / Viber',
+          ads: 'Реклама (FB/IG)',
+          referral: 'Рекомендація',
+          site: 'Сайт Magic Lash'
+        },
+        course: 'Вибір напрямку',
+        amount: 'Сума першої оплати ($)',
+        comments: 'Методологічні нотатки / Коментарі',
+        submit: 'Зареєструвати в HUB',
+        cancel: 'Скасувати'
       },
       ariBanner: {
         title: 'ARI Стратег активована',
@@ -48,11 +86,33 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
       badge: 'Professional Management HUB',
       title: 'MASTERY WORKSHOP',
       subtitle: 'Manage your programs, track student success, and control financial flows in real-time.',
+      addStudent: 'Add Student',
       stats: {
         revenue: 'Monthly Revenue',
         students: 'Active Students',
         debt: 'Outstanding Debt',
         rating: 'HUB Rating'
+      },
+      modal: {
+        title: 'HUB Registration',
+        sub: 'Account creation and financial mapping',
+        firstName: 'First Name',
+        lastName: 'Last Name',
+        email: 'Email (login)',
+        phone: 'Phone',
+        source: 'Lead Source',
+        sourceOptions: {
+          instagram: 'Instagram',
+          whatsapp: 'WhatsApp / Viber',
+          ads: 'Ads (FB/IG)',
+          referral: 'Referral',
+          site: 'Magic Lash Site'
+        },
+        course: 'Select Program',
+        amount: 'Initial Payment ($)',
+        comments: 'Methodology Notes / Comments',
+        submit: 'Register in HUB',
+        cancel: 'Cancel'
       },
       ariBanner: {
         title: 'ARI Strategist Activated',
@@ -72,7 +132,7 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
       edit: 'Manage',
       viewAll: 'All Transactions'
     }
-  }[lang]), [lang]);
+  }[lang]), [lang, courses]);
 
   const stats = useMemo(() => {
     const revenue = invoices.reduce((a, b) => a + b.paid, 0);
@@ -87,17 +147,59 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
     { name: 'Анна Сидорчук', course: 'Magic Lash Geometry', ends: '2025-05-20', progress: 100, upsell: 'Business Management' },
   ];
 
+  const handleRegisterStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const selectedCourse = courses.find(c => c.id === newStudent.courseId);
+    
+    const newInvoice: Invoice = {
+      id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
+      student: `${newStudent.firstName} ${newStudent.lastName}`,
+      course: selectedCourse?.title || 'Custom Direction',
+      total: selectedCourse?.price || Number(newStudent.amount) || 0,
+      paid: Number(newStudent.amount) || 0,
+      status: Number(newStudent.amount) >= (selectedCourse?.price || 0) ? 'paid' : 'partial',
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      payments: newStudent.amount ? [{
+        id: `p-${Date.now()}`,
+        amount: Number(newStudent.amount),
+        date: new Date().toISOString().split('T')[0],
+        note: `Initial registration via ${newStudent.source}`
+      }] : []
+    };
+
+    onAddInvoice(newInvoice);
+    setIsAddStudentModalOpen(false);
+    setNewStudent({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      source: 'instagram',
+      courseId: courses[0]?.id || '',
+      amount: '',
+      comments: ''
+    });
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0C10]">
       <div className="flex-1 overflow-y-auto p-10 custom-scrollbar animate-in fade-in duration-700">
         <div className="max-w-7xl mx-auto space-y-12 text-left pb-20">
           
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-500/20">
-              <Layers size={12} /> {t.badge}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-10">
+            <div className="text-left space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-500/20">
+                <Layers size={12} /> {t.badge}
+              </div>
+              <h1 className="text-5xl md:text-7xl font-black text-gray-100 tracking-tighter uppercase">{t.title}</h1>
+              <p className="text-gray-400 max-w-xl font-medium">{t.subtitle}</p>
             </div>
-            <h1 className="text-7xl md:text-8xl font-black text-gray-100 tracking-tighter uppercase">{t.title}</h1>
-            <p className="text-gray-400 max-w-2xl mx-auto font-medium">{t.subtitle}</p>
+            <button 
+              onClick={() => setIsAddStudentModalOpen(true)}
+              className="px-10 py-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-purple-900/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-4"
+            >
+              <UserPlus size={20} /> {t.addStudent}
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -285,6 +387,112 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
           </div>
         </div>
       </div>
+
+      {/* MODAL: ADD STUDENT */}
+      {isAddStudentModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-500">
+           <div className="bg-[#12141C] w-full max-w-4xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
+              
+              <div className="w-full md:w-72 bg-[#0A0C10] p-10 border-r border-[#1F232B] hidden md:flex flex-col text-left">
+                 <div className="mb-8">
+                    <div className="w-20 h-20 bg-purple-600/10 rounded-[2rem] flex items-center justify-center text-purple-400 shadow-lg mb-6">
+                       <UserPlus size={40} />
+                    </div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">{t.modal.title}</h3>
+                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mt-2">{t.modal.sub}</p>
+                 </div>
+                 <div className="mt-auto space-y-6">
+                    <div className="flex items-center gap-3">
+                       <ShieldCheck className="text-green-500" size={16} />
+                       <span className="text-[9px] font-black text-gray-500 uppercase">Cloud Sync Active</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <Info className="text-purple-500" size={16} />
+                       <span className="text-[9px] font-black text-gray-500 uppercase">AI mapping ready</span>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="flex-1 p-10 overflow-y-auto max-h-[90vh] custom-scrollbar">
+                 <div className="flex justify-between items-center mb-10 md:hidden">
+                    <h3 className="text-2xl font-black text-white uppercase">{t.modal.title}</h3>
+                    <button onClick={() => setIsAddStudentModalOpen(false)} className="text-gray-500"><X size={24} /></button>
+                 </div>
+
+                 <form onSubmit={handleRegisterStudent} className="space-y-8 text-left">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.firstName}</label>
+                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.firstName} onChange={e => setNewStudent({...newStudent, firstName: e.target.value})} />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.lastName}</label>
+                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.lastName} onChange={e => setNewStudent({...newStudent, lastName: e.target.value})} />
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.email}</label>
+                          <div className="relative">
+                             <Mail size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.email} onChange={e => setNewStudent({...newStudent, email: e.target.value})} />
+                          </div>
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.phone}</label>
+                          <div className="relative">
+                             <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.phone} onChange={e => setNewStudent({...newStudent, phone: e.target.value})} />
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.source}</label>
+                          <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.source} onChange={e => setNewStudent({...newStudent, source: e.target.value})}>
+                             {Object.entries(t.modal.sourceOptions).map(([key, val]) => (
+                               <option key={key} value={key}>{val}</option>
+                             ))}
+                          </select>
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.course}</label>
+                          <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.courseId} onChange={e => setNewStudent({...newStudent, courseId: e.target.value})}>
+                             {courses.map(c => (
+                               <option key={c.id} value={c.id}>{c.title}</option>
+                             ))}
+                          </select>
+                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.amount}</label>
+                       <div className="relative">
+                          <DollarSign size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-green-500" />
+                          <input type="number" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-6 pl-14 pr-8 text-xl font-black text-white outline-none focus:ring-1 ring-green-500/50" placeholder="0.00" value={newStudent.amount} onChange={e => setNewStudent({...newStudent, amount: e.target.value})} />
+                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.comments}</label>
+                       <textarea className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-[2rem] py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 h-32 resize-none" value={newStudent.comments} onChange={e => setNewStudent({...newStudent, comments: e.target.value})} />
+                    </div>
+
+                    <div className="flex gap-4 pt-4">
+                       <button type="button" onClick={() => setIsAddStudentModalOpen(false)} className="flex-1 py-5 bg-[#1F232B] text-gray-500 rounded-3xl font-black uppercase text-[10px] tracking-widest transition-all hover:text-white">
+                         {t.modal.cancel}
+                       </button>
+                       <button type="submit" className="flex-[2] py-5 bg-purple-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-purple-900/30 transition-all hover:bg-purple-700">
+                         {t.modal.submit}
+                       </button>
+                    </div>
+                 </form>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

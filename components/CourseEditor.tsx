@@ -14,7 +14,6 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
   const [activeLessonId, setActiveLessonId] = useState(course.lessons[0]?.id);
   const [activeStepId, setActiveStepId] = useState<number | 'lesson'>(course.lessons[0]?.steps[0]?.id);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [loadingMessageIdx, setLoadingMessageIdx] = useState(0);
   
@@ -111,17 +110,10 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
       ragQuery: '',
       comments: ''
     };
-
     const updatedLessons = course.lessons.map(l => {
-      if (l.id === activeLessonId) {
-        return {
-          ...l,
-          steps: [...l.steps, newStep]
-        };
-      }
+      if (l.id === activeLessonId) return { ...l, steps: [...l.steps, newStep] };
       return l;
     });
-
     onUpdate({ ...course, lessons: updatedLessons });
     setActiveStepId(newStepId);
   };
@@ -133,11 +125,7 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
       return;
     }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert(lang === 'uk' ? "Ваш браузер не підтримує розпізнавання мови" : "Your browser doesn't support speech recognition");
-      return;
-    }
-
+    if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
     recognition.lang = lang === 'uk' ? 'uk-UA' : 'en-US';
     recognition.continuous = true;
@@ -156,10 +144,7 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
 
   const handleGenerateVideo = async () => {
     const targetPrompt = activeStepId === 'lesson' ? activeLesson.aiPrompt : activeStep?.aiPrompt;
-    if (!targetPrompt) {
-      alert(lang === 'uk' ? "Спочатку введіть ARI Prompt" : "Please enter ARI Prompt first");
-      return;
-    }
+    if (!targetPrompt) return;
     setIsGeneratingVideo(true);
     try {
       const visualPrompt = `Educational beauty cinematography: ${targetPrompt}. 4K, macro lens, professional lighting.`;
@@ -168,7 +153,6 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
       else updateActiveStep('media', videoUrl);
     } catch (error: any) {
       console.error(error);
-      alert("Error generating video with Veo.");
     } finally {
       setIsGeneratingVideo(false);
     }
@@ -189,7 +173,7 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
           <p className="text-xl font-black text-gray-100 truncate">{activeStepId === 'lesson' ? activeLesson.title : activeStep?.title}</p>
         </div>
         <div className="flex gap-3 shrink-0">
-           <button className={`px-5 py-2.5 ${brandBg} text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95`}>
+           <button className={`px-6 py-3 ${brandBg} text-white rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95`}>
               <Save size={14} /> {lang === 'uk' ? 'Зберегти' : 'Save'}
            </button>
         </div>
@@ -203,17 +187,17 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
             <div key={lesson.id} className="mb-6 text-left">
                <div 
                  onClick={() => { setActiveLessonId(lesson.id); setActiveStepId('lesson'); }}
-                 className={`flex items-center gap-2 mb-3 cursor-pointer group p-2 rounded-lg transition-all ${activeLessonId === lesson.id && activeStepId === 'lesson' ? 'bg-white/5 ' + brandAccent : 'text-gray-400 hover:text-white'}`}
+                 className={`flex items-center gap-2 mb-3 cursor-pointer group p-3 rounded-2xl transition-all ${activeLessonId === lesson.id && activeStepId === 'lesson' ? 'bg-white/5 ' + brandAccent : 'text-gray-400 hover:text-white'}`}
                >
                  <Layout size={14} />
-                 <span className="text-[11px] font-black uppercase truncate">{lesson.title}</span>
+                 <span className="text-[11px] font-black uppercase truncate tracking-widest">{lesson.title}</span>
                </div>
                
                {activeLessonId === lesson.id && (
                  <div className="space-y-2 pl-4">
                    <div 
                      onClick={() => setActiveStepId('lesson')}
-                     className={`p-3 rounded-xl cursor-pointer border-2 transition-all flex items-center gap-2 ${activeStepId === 'lesson' ? `bg-[#1F232B] ${brandBorder}` : 'border-transparent hover:bg-white/5'}`}
+                     className={`p-4 rounded-2xl cursor-pointer border-2 transition-all flex items-center gap-2 ${activeStepId === 'lesson' ? `bg-[#1F232B] ${brandBorder}` : 'border-transparent hover:bg-white/5'}`}
                    >
                      <Video size={12} className={brandAccent} />
                      <span className="text-[10px] font-bold text-white tracking-tight">{lang === 'uk' ? 'Медіа Уроку' : 'Lesson Media'}</span>
@@ -223,7 +207,7 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
                       <div 
                         key={step.id} 
                         onClick={() => setActiveStepId(step.id)} 
-                        className={`p-3 rounded-xl cursor-pointer border-2 transition-all text-left ${
+                        className={`p-4 rounded-2xl cursor-pointer border-2 transition-all text-left ${
                           activeStepId === step.id ? `bg-[#1F232B] ${brandBorder} shadow-lg` : 'border-transparent hover:bg-[#1F232B]/50'
                         }`}
                       >
@@ -233,7 +217,7 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
                    ))}
                    <button 
                     onClick={handleAddStep}
-                    className="w-full mt-2 p-3 rounded-xl border-2 border-dashed border-[#1F232B] hover:border-purple-500/30 text-gray-600 hover:text-purple-400 transition-all flex items-center justify-center gap-2"
+                    className="w-full mt-2 p-4 rounded-2xl border-2 border-dashed border-[#1F232B] hover:border-purple-500/30 text-gray-600 hover:text-purple-400 transition-all flex items-center justify-center gap-2"
                    >
                      <Plus size={14} />
                      <span className="text-[9px] font-black uppercase tracking-widest">{lang === 'uk' ? 'Додати етап' : 'Add Step'}</span>
@@ -246,54 +230,57 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
 
         {/* Content Editor */}
         <div className="flex-1 p-12 overflow-y-auto custom-scrollbar text-left">
-           <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-              <div className="space-y-2">
-                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+           <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20">
+              <div className="space-y-3">
+                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">
                     {activeStepId === 'lesson' ? (lang === 'uk' ? 'Назва Уроку' : 'Lesson Title') : (lang === 'uk' ? 'Назва технічного кроку' : 'Technical Step Name')}
                  </label>
                  <input 
-                    className="w-full text-4xl font-black bg-transparent border-none focus:ring-0 p-0 text-gray-100 placeholder-[#1F232B]"
+                    className="w-full text-5xl font-black bg-transparent border-none focus:ring-0 p-0 text-white placeholder-gray-800 tracking-tighter"
                     value={activeStepId === 'lesson' ? activeLesson.title : activeStep?.title}
                     onChange={(e) => activeStepId === 'lesson' ? updateActiveLesson('title', e.target.value) : updateActiveStep('title', e.target.value)}
                  />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* ARI Prompt with Voice */}
-                <div className="bg-[#12141C] p-8 rounded-[3rem] border border-[#1F232B] shadow-sm space-y-6 text-left relative overflow-hidden group">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                {/* ARI Prompt - Fully Editable */}
+                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-xl space-y-6 text-left relative overflow-hidden group">
                     <div className="flex justify-between items-center">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
                         <Wand2 size={14} className={brandAccent} /> {lang === 'uk' ? 'Сценарій (ARI Prompt)' : 'Script (ARI Prompt)'}
                       </label>
                       <button 
                         onClick={toggleListening}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 text-gray-400 border border-white/5 hover:border-purple-500/50'}`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-[#0A0C10] text-gray-400 border border-white/5 hover:border-purple-500/50'}`}
                       >
-                        {isListening ? <MicOff size={12} /> : <Mic size={12} />}
-                        {isListening ? (lang === 'uk' ? 'Слухаю...' : 'Listening...') : (lang === 'uk' ? ' ARI ГОВОРИ' : ' ARI VOICE')}
+                        {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+                        {isListening ? 'LIVE' : 'ARI VOICE'}
                       </button>
                     </div>
                     <textarea 
-                      className={`w-full h-40 bg-[#0A0C10] border border-[#1F232B] rounded-3xl p-6 text-sm text-gray-200 focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} resize-none transition-all outline-none placeholder-gray-700`}
+                      className={`w-full h-56 bg-[#0A0C10] border border-[#1F232B] rounded-[2rem] p-8 text-sm text-gray-200 focus:ring-1 ${isExtension ? 'ring-purple-500/50 shadow-purple-500/5' : 'ring-yellow-500/50 shadow-yellow-500/5'} resize-none transition-all outline-none placeholder-gray-800 leading-relaxed`}
                       value={activeStepId === 'lesson' ? (activeLesson.aiPrompt || '') : (activeStep?.aiPrompt || '')} 
                       onChange={(e) => activeStepId === 'lesson' ? updateActiveLesson('aiPrompt', e.target.value) : updateActiveStep('aiPrompt', e.target.value)}
                       placeholder={placeholders.aiPrompt}
                     />
+                    <div className="absolute bottom-6 right-10 opacity-0 group-hover:opacity-40 transition-opacity">
+                       <Edit3 size={16} className="text-gray-500" />
+                    </div>
                 </div>
 
-                {/* Media Preview / Veo */}
-                <div className="bg-[#12141C] p-8 rounded-[3rem] border border-[#1F232B] shadow-sm flex flex-col space-y-6 relative overflow-hidden">
+                {/* Media Preview */}
+                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-xl flex flex-col space-y-6 relative overflow-hidden group">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                      <Film size={14} className={brandAccent} /> {activeStepId === 'lesson' ? 'Media Asset (Lesson)' : 'Step Video (Veo)'}
+                      <Film size={14} className={brandAccent} /> {activeStepId === 'lesson' ? 'Media Asset' : 'Step Video (Veo)'}
                     </label>
                   </div>
                   
-                  <div className="flex-1 min-h-[160px] bg-[#0A0C10] rounded-3xl border border-[#1F232B] overflow-hidden flex flex-col items-center justify-center relative group shadow-inner">
+                  <div className="flex-1 min-h-[200px] bg-[#0A0C10] rounded-[2.5rem] border border-[#1F232B] overflow-hidden flex flex-col items-center justify-center relative shadow-inner">
                     {isGeneratingVideo ? (
-                      <div className="flex flex-col items-center gap-6 p-6 text-center animate-pulse">
-                        <Loader2 className={`animate-spin ${brandAccent}`} size={32} />
-                        <p className="text-[10px] font-black text-white uppercase tracking-widest leading-relaxed">
+                      <div className="flex flex-col items-center gap-6 p-8 text-center animate-pulse">
+                        <Loader2 className={`animate-spin ${brandAccent}`} size={40} />
+                        <p className="text-[10px] font-black text-white uppercase tracking-widest leading-relaxed max-w-[150px]">
                           {loadingMessages[loadingMessageIdx]}
                         </p>
                       </div>
@@ -305,18 +292,18 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
                           <img src={currentMedia} className="w-full h-full object-cover" alt="Media" />
                         )}
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/vid:opacity-100 transition-all flex items-center justify-center gap-4">
-                           <button onClick={() => fileInputRef.current?.click()} className="p-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white hover:scale-110 transition-transform">
+                           <button onClick={() => fileInputRef.current?.click()} className="p-5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white hover:scale-110 transition-transform">
                              <Upload size={20} />
                            </button>
-                           <button onClick={handleGenerateVideo} className="p-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white hover:scale-110 transition-transform">
+                           <button onClick={handleGenerateVideo} className="p-5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white hover:scale-110 transition-transform">
                              <RefreshCw size={20} />
                            </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center p-6 space-y-4 opacity-30 group-hover:opacity-60 transition-opacity">
-                        <FileVideo size={40} className="mx-auto" />
-                        <p className="text-[9px] font-black uppercase tracking-widest">{lang === 'uk' ? 'Медіа не задано' : 'No media set'}</p>
+                      <div className="text-center p-8 space-y-4 opacity-10 group-hover:opacity-30 transition-opacity">
+                        <FileVideo size={64} className="mx-auto" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Media Pending</p>
                       </div>
                     )}
                   </div>
@@ -324,47 +311,44 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
                   <button 
                     onClick={handleGenerateVideo}
                     disabled={isGeneratingVideo}
-                    className={`w-full py-5 ${brandBg} text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] transition-all flex items-center justify-center gap-3 disabled:opacity-50 hover:brightness-110 shadow-xl`}
+                    className={`w-full py-5 ${brandBg} text-white rounded-[2rem] font-black uppercase text-[10px] tracking-[0.3em] transition-all flex items-center justify-center gap-3 disabled:opacity-50 hover:brightness-110 shadow-2xl shadow-purple-900/10`}
                   >
                     {isGeneratingVideo ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} 
-                    {lang === 'uk' ? 'ЗГЕНЕРУВАТИ VEO HD' : 'GENERATE VEO HD'}
+                    GENERATE VEO HD
                   </button>
                 </div>
               </div>
 
               {/* Advanced Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-sm space-y-6 text-left relative overflow-hidden group">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-xl space-y-6 text-left relative overflow-hidden">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
                       <MessageSquare size={14} className={brandAccent} /> {lang === 'uk' ? 'База Знань (RAG)' : 'Knowledge Base (RAG)'}
                     </label>
                     <input 
-                      className={`w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl p-5 text-xs font-bold text-gray-300 outline-none focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} transition-all placeholder-gray-800`}
+                      className={`w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-xs font-bold text-gray-300 outline-none focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} transition-all placeholder-gray-900 shadow-inner`}
                       value={activeStepId === 'lesson' ? (activeLesson.ragQuery || '') : (activeStep?.ragQuery || '')}
                       onChange={(e) => activeStepId === 'lesson' ? updateActiveLesson('ragQuery', e.target.value) : updateActiveStep('ragQuery', e.target.value)}
                       placeholder={placeholders.rag}
                     />
                 </div>
 
-                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-sm space-y-6 text-left relative overflow-hidden group">
+                <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-xl space-y-6 text-left relative overflow-hidden">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
                       <Link size={14} className={brandAccent} /> {lang === 'uk' ? 'Медіа-ресурс' : 'Media Asset'}
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                          <div className="relative flex-1 group/input">
-                            <ImageIcon size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600" />
+                            <ImageIcon size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-700" />
                             <input 
-                                className={`w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 pl-12 pr-6 text-xs font-bold text-gray-100 outline-none focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} transition-all`}
+                                className={`w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-xs font-bold text-gray-100 outline-none focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} transition-all placeholder-gray-900 shadow-inner`}
                                 value={currentMedia || ''}
                                 onChange={(e) => activeStepId === 'lesson' ? updateActiveLesson('media', e.target.value) : updateActiveStep('media', e.target.value)}
                                 placeholder={placeholders.mediaUrl}
                             />
                          </div>
-                         <button 
-                           onClick={() => fileInputRef.current?.click()}
-                           className="p-4 bg-[#0A0C10] border border-[#1F232B] rounded-2xl text-gray-400 hover:text-white hover:border-purple-500/50 transition-all"
-                         >
-                           <Upload size={16} />
+                         <button onClick={() => fileInputRef.current?.click()} className="p-5 bg-[#0A0C10] border border-[#1F232B] rounded-2xl text-gray-400 hover:text-white transition-all shadow-xl">
+                           <Upload size={18} />
                          </button>
                     </div>
                     <input type="file" ref={fileInputRef} hidden onChange={handleFileUpload} accept="image/*,video/*" />
@@ -372,20 +356,21 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
               </div>
 
               {/* Technical Notes */}
-              <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-sm space-y-6 text-left relative overflow-hidden group">
+              <div className="bg-[#12141C] p-10 rounded-[4rem] border border-[#1F232B] shadow-xl space-y-6 text-left relative overflow-hidden group">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Edit3 size={14} className={brandAccent} /> {lang === 'uk' ? 'Методологічні нотатки (Comments)' : 'Teacher Notes (Comments)'}
+                    <Edit3 size={14} className={brandAccent} /> {lang === 'uk' ? 'Методологічні нотатки' : 'Teacher Notes'}
                   </label>
                   <textarea 
-                    className={`w-full h-32 bg-[#0A0C10] border border-[#1F232B] rounded-2xl p-6 text-xs font-medium text-gray-400 focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} resize-none outline-none placeholder-gray-800 transition-all`}
+                    className={`w-full h-40 bg-[#0A0C10] border border-[#1F232B] rounded-[2rem] p-8 text-xs font-medium text-gray-400 focus:ring-1 ${isExtension ? 'ring-purple-500/30' : 'ring-yellow-500/30'} resize-none outline-none placeholder-gray-900 transition-all leading-relaxed`}
                     value={activeStepId === 'lesson' ? '' : (activeStep?.comments || '')}
                     disabled={activeStepId === 'lesson'}
                     onChange={(e) => updateActiveStep('comments', e.target.value)}
                     placeholder={placeholders.comments}
                   />
                   {activeStepId === 'lesson' && (
-                    <div className="absolute inset-0 bg-[#12141C]/80 backdrop-blur-[2px] flex items-center justify-center p-8 text-center">
-                       <p className="text-[9px] font-black uppercase text-gray-600 tracking-widest">Нотатки доступні тільки для технічних кроків</p>
+                    <div className="absolute inset-0 bg-[#12141C]/90 backdrop-blur-[4px] flex flex-col items-center justify-center p-12 text-center space-y-4">
+                       <Layout size={32} className="text-gray-700" />
+                       <p className="text-[10px] font-black uppercase text-gray-600 tracking-[0.3em] max-w-xs leading-loose">Нотатки доступні тільки для технічних кроків етапу</p>
                     </div>
                   )}
               </div>

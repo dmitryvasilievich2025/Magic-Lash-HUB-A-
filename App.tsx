@@ -80,6 +80,7 @@ const App: React.FC = () => {
       isExtensionCourse: false,
       price: 550,
       studentCount: 42,
+      description: 'Революційна формула для потовщення вій. Хімія складів та повний протокол процедури.',
       image: 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=800',
       lessons: [
         { 
@@ -98,6 +99,7 @@ const App: React.FC = () => {
       isExtensionCourse: true,
       price: 450,
       studentCount: 28,
+      description: 'Нарощування вій: від 2D до 5D. Геометрія пучка, площа зчіпки та мікровідступи.',
       image: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&q=80&w=400',
       lessons: []
     }
@@ -146,9 +148,14 @@ const App: React.FC = () => {
     },
   ]);
 
+  const handleAddInvoice = (newInv: Invoice) => {
+    setInvoices(prev => [newInv, ...prev]);
+  };
+
   const sidebarItems = useMemo(() => {
     const allItems = [
       { id: 'showcase', icon: ShoppingBag, label: t.showcase, roles: ['guest', 'student', 'specialist', 'admin'] },
+      { id: 'guest-chat', icon: Sparkles, label: t.guestChat, roles: ['guest'] },
       { id: 'specialist-dashboard', icon: LayoutDashboard, label: t.specialistHub, roles: ['specialist', 'admin'] },
       { id: 'my-courses', icon: UserCircle, label: t.myDashboard, roles: ['student'] },
       { id: 'live-assistant', icon: Mic, label: t.aiCoach, roles: ['student', 'admin'] },
@@ -300,10 +307,10 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 min-h-0 flex flex-col relative">
-          {activeTab === 'showcase' && <Showcase lang={language} onPurchase={(inv) => setInvoices([inv, ...invoices])} onNavigate={setActiveTab} />}
-          {activeTab === 'guest-chat' && <GuestChat lang={language} courses={courses} onPurchase={(inv) => setInvoices([inv, ...invoices])} onNavigate={setActiveTab} />}
+          {activeTab === 'showcase' && <Showcase lang={language} onPurchase={handleAddInvoice} onNavigate={setActiveTab} />}
+          {activeTab === 'guest-chat' && <GuestChat lang={language} courses={courses} onPurchase={handleAddInvoice} onNavigate={setActiveTab} />}
           {activeTab === 'specialist-dashboard' && (role === 'specialist' || role === 'admin') && (
-            <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} />
+            <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} onAddInvoice={handleAddInvoice} />
           )}
           {activeTab === 'my-courses' && role === 'student' && (
             <StudentDashboard lang={language} activeCourse={activeCourse} />
