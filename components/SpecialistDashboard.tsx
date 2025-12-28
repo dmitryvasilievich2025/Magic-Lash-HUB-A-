@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Users, TrendingUp, AlertCircle, Sparkles, ArrowRight, 
-  MessageSquare, Layers, DollarSign, Clock, BarChart3, Star, Edit3, Calendar, ShieldCheck, Zap,
-  Plus, X, UserPlus, Mail, Phone, Info, Target, ShoppingBag
+  Layers, DollarSign, Clock, BarChart3, Star, Edit3, Calendar, ShieldCheck, Zap,
+  Plus, X, UserPlus, Mail, Phone, Info, Target, Instagram, Award, MessageSquare, Briefcase, User
 } from 'lucide-react';
 import { Course, Invoice, TabType, Language } from '../types';
 
@@ -13,18 +13,20 @@ interface Props {
   lang: Language;
   onNavigate: (tab: TabType) => void;
   onSetActiveCourse: (id: string) => void;
-  onAddInvoice: (inv: Invoice) => void; // Додано для створення інвойсу при реєстрації
+  onAddInvoice: (inv: Invoice) => void;
 }
 
 const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavigate, onSetActiveCourse, onAddInvoice }) => {
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
   
-  // Стан форми нового учня
+  // Початковий стан форми нового учня
   const [newStudent, setNewStudent] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
+    instagram: '',
+    level: 'beginner',
     source: 'instagram',
     courseId: courses[0]?.id || '',
     amount: '',
@@ -45,112 +47,94 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
       },
       modal: {
         title: 'Реєстрація у HUB',
-        sub: 'Створення облікового запису та фінансової карти',
+        sub: 'Створення профілю студента та фінансової карти',
         firstName: "Ім'я",
         lastName: 'Прізвище',
-        email: 'Email (для входу)',
+        email: 'Email (login)',
         phone: 'Телефон',
+        instagram: 'Instagram @handle',
+        level: 'Рівень майстерності',
+        levels: {
+          beginner: 'Beginner (Новачок)',
+          intermediate: 'Intermediate (Майстер)',
+          pro: 'Pro (Топ-стиліст)'
+        },
         source: 'Звідки дізнався?',
         sourceOptions: {
           instagram: 'Instagram',
-          whatsapp: 'WhatsApp / Viber',
+          whatsapp: 'WhatsApp / Messengers',
           ads: 'Реклама (FB/IG)',
-          referral: 'Рекомендація',
-          site: 'Сайт Magic Lash'
+          referral: 'Рекомендація / Реферал',
+          site: 'Сайт / Пошук'
         },
-        course: 'Вибір напрямку',
-        amount: 'Сума першої оплати ($)',
-        comments: 'Методологічні нотатки / Коментарі',
-        submit: 'Зареєструвати в HUB',
+        course: 'Призначений курс',
+        amount: 'Сума оплати ($)',
+        comments: 'Професійні коментарі / Нотатки',
+        submit: 'Зареєструвати учня',
         cancel: 'Скасувати'
       },
-      ariBanner: {
-        title: 'ARI Стратег активована',
-        sub: 'Проаналізувала 12 сесій. Студенти часто помиляються на 3-му кроці Lash Filler. Рекомендую оновити AI Prompt.',
-        btn: 'Оновити методику'
-      },
-      calendar: {
-        title: 'Календар Стейкхолдера',
-        sub: 'Моніторинг доступів та стратегія Upsell',
-        student: 'Студент',
-        access: 'Кінець доступу',
-        nextLevel: 'Пропозиція Upsell',
-        upsellBtn: 'Надіслати пропозицію через ARI'
-      },
-      coursesTitle: 'Мої Напрямки',
-      financeTitle: 'Останні активності студентів',
-      edit: 'Керувати',
-      viewAll: 'Всі транзакції'
+      coursesTitle: 'Активні Напрямки',
+      financeTitle: 'Останні активності',
+      edit: 'Керувати'
     },
     en: {
       badge: 'Professional Management HUB',
       title: 'MASTERY WORKSHOP',
-      subtitle: 'Manage your programs, track student success, and control financial flows in real-time.',
+      subtitle: 'Manage your programs, track student success, and control financial flows.',
       addStudent: 'Add Student',
       stats: {
         revenue: 'Monthly Revenue',
         students: 'Active Students',
-        debt: 'Outstanding Debt',
+        debt: 'Total Debt',
         rating: 'HUB Rating'
       },
       modal: {
         title: 'HUB Registration',
-        sub: 'Account creation and financial mapping',
+        sub: 'Student profile and finance mapping',
         firstName: 'First Name',
         lastName: 'Last Name',
         email: 'Email (login)',
         phone: 'Phone',
+        instagram: 'Instagram @handle',
+        level: 'Mastery Level',
+        levels: {
+          beginner: 'Beginner',
+          intermediate: 'Intermediate',
+          pro: 'Pro Artist'
+        },
         source: 'Lead Source',
         sourceOptions: {
           instagram: 'Instagram',
-          whatsapp: 'WhatsApp / Viber',
+          whatsapp: 'WhatsApp / Messengers',
           ads: 'Ads (FB/IG)',
           referral: 'Referral',
-          site: 'Magic Lash Site'
+          site: 'Website / Search'
         },
-        course: 'Select Program',
-        amount: 'Initial Payment ($)',
-        comments: 'Methodology Notes / Comments',
-        submit: 'Register in HUB',
+        course: 'Assigned Course',
+        amount: 'Payment Amount ($)',
+        comments: 'Professional Comments',
+        submit: 'Register Student',
         cancel: 'Cancel'
       },
-      ariBanner: {
-        title: 'ARI Strategist Activated',
-        sub: 'Analyzed 12 sessions. Students often fail at step 3 of Lash Filler. Recommended to update AI Prompt.',
-        btn: 'Update Methodology'
-      },
-      calendar: {
-        title: 'Stakeholder Calendar',
-        sub: 'Access monitoring and Upsell strategy',
-        student: 'Student',
-        access: 'Access Ends',
-        nextLevel: 'Upsell Offer',
-        upsellBtn: 'Send Proposal via ARI'
-      },
-      coursesTitle: 'My Programs',
-      financeTitle: 'Recent Student Activity',
-      edit: 'Manage',
-      viewAll: 'All Transactions'
+      coursesTitle: 'Active Programs',
+      financeTitle: 'Recent Activity',
+      edit: 'Manage'
     }
   }[lang]), [lang, courses]);
 
-  const stats = useMemo(() => {
+  // Розрахунок статистики для дашборду
+  const statsSummary = useMemo(() => {
     const revenue = invoices.reduce((a, b) => a + b.paid, 0);
     const debt = invoices.reduce((a, b) => a + (b.total - b.paid), 0);
-    const totalStudents = Array.from(new Set(invoices.map(i => i.student))).length;
-    return { revenue, debt, totalStudents };
+    const uniqueStudents = Array.from(new Set(invoices.map(i => i.student))).length;
+    return { revenue, debt, uniqueStudents };
   }, [invoices]);
-
-  const stakeholderData = [
-    { name: 'Олена Петренко', course: 'InLei® Lash Filler', ends: '2025-06-01', progress: 95, upsell: 'Magic Lash Geometry' },
-    { name: 'Марія Іванова', course: 'Lash Adhesive Master', ends: '2025-05-15', progress: 40, upsell: 'Advanced Speed Tech' },
-    { name: 'Анна Сидорчук', course: 'Magic Lash Geometry', ends: '2025-05-20', progress: 100, upsell: 'Business Management' },
-  ];
 
   const handleRegisterStudent = (e: React.FormEvent) => {
     e.preventDefault();
     const selectedCourse = courses.find(c => c.id === newStudent.courseId);
     
+    // Створення інвойсу на основі даних форми
     const newInvoice: Invoice = {
       id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
       student: `${newStudent.firstName} ${newStudent.lastName}`,
@@ -158,22 +142,26 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
       total: selectedCourse?.price || Number(newStudent.amount) || 0,
       paid: Number(newStudent.amount) || 0,
       status: Number(newStudent.amount) >= (selectedCourse?.price || 0) ? 'paid' : 'partial',
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       payments: newStudent.amount ? [{
         id: `p-${Date.now()}`,
         amount: Number(newStudent.amount),
         date: new Date().toISOString().split('T')[0],
-        note: `Initial registration via ${newStudent.source}`
+        note: `Registration: ${newStudent.level} | Source: ${newStudent.source}`
       }] : []
     };
 
     onAddInvoice(newInvoice);
     setIsAddStudentModalOpen(false);
+    
+    // Скидання форми
     setNewStudent({
       firstName: '',
       lastName: '',
       email: '',
       phone: '',
+      instagram: '',
+      level: 'beginner',
       source: 'instagram',
       courseId: courses[0]?.id || '',
       amount: '',
@@ -182,9 +170,9 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0C10]">
+    <div className="flex-1 flex flex-col h-full bg-[#0A0C10] overflow-hidden">
       <div className="flex-1 overflow-y-auto p-10 custom-scrollbar animate-in fade-in duration-700">
-        <div className="max-w-7xl mx-auto space-y-12 text-left pb-20">
+        <div className="max-w-7xl mx-auto space-y-12 pb-20">
           
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-10">
             <div className="text-left space-y-4">
@@ -203,187 +191,49 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl">
+            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl text-left">
               <TrendingUp className="text-green-500" size={24} />
               <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t.stats.revenue}</p>
-              <h4 className="text-4xl font-black text-gray-100 tracking-tight">${stats.revenue.toLocaleString()}</h4>
+              <h4 className="text-4xl font-black text-gray-100 tracking-tight">${statsSummary.revenue.toLocaleString()}</h4>
             </div>
-            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl">
+            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl text-left">
               <Users className="text-blue-500" size={24} />
               <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t.stats.students}</p>
-              <h4 className="text-4xl font-black text-gray-100 tracking-tight">{stats.totalStudents}</h4>
+              <h4 className="text-4xl font-black text-gray-100 tracking-tight">{statsSummary.uniqueStudents}</h4>
             </div>
-            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl">
+            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl text-left">
               <AlertCircle className="text-red-500" size={24} />
               <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t.stats.debt}</p>
-              <h4 className="text-4xl font-black text-red-400 tracking-tight">${stats.debt.toLocaleString()}</h4>
+              <h4 className="text-4xl font-black text-red-400 tracking-tight">${statsSummary.debt.toLocaleString()}</h4>
             </div>
-            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl">
+            <div className="bg-[#12141C] p-8 rounded-[2.5rem] border border-[#1F232B] space-y-4 shadow-xl text-left">
               <Star className="text-yellow-500" size={24} />
               <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t.stats.rating}</p>
               <h4 className="text-4xl font-black text-gray-100 tracking-tight">4.98</h4>
             </div>
           </div>
 
-          <div className="space-y-8">
-             <div className="flex items-center justify-between px-4 text-left">
-                <div className="flex items-center gap-3">
-                   <Calendar className="text-purple-400" size={20} />
-                   <div>
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-100 leading-none">{t.calendar.title}</h3>
-                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mt-1">{t.calendar.sub}</p>
-                   </div>
-                </div>
-             </div>
-             
-             <div className="grid grid-cols-1 gap-4">
-                {stakeholderData.map((s, i) => (
-                  <div key={i} className="bg-[#12141C] rounded-[2.5rem] border border-[#1F232B] p-8 flex flex-col lg:flex-row items-center justify-between gap-8 group hover:border-purple-500/30 transition-all">
-                     <div className="flex items-center gap-6 flex-1 min-w-0 text-left">
-                        <div className="w-14 h-14 bg-[#0A0C10] rounded-2xl flex items-center justify-center border border-white/5 text-purple-400 font-black shadow-inner">
-                          {s.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-black text-white uppercase truncate">{s.name}</h4>
-                          <p className="text-[10px] font-bold text-gray-500 truncate">{s.course}</p>
-                        </div>
-                     </div>
-
-                     <div className="flex-1 w-full lg:w-auto px-6">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{lang === 'uk' ? 'Прогрес' : 'Progress'}</span>
-                           <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">{s.progress}%</span>
-                        </div>
-                        <div className="h-1.5 bg-[#0A0C10] rounded-full overflow-hidden border border-white/5">
-                           <div className="h-full bg-purple-600 rounded-full" style={{ width: `${s.progress}%` }} />
-                        </div>
-                     </div>
-
-                     <div className="flex-1 text-left lg:text-center">
-                        <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">{t.calendar.access}</p>
-                        <div className="flex items-center justify-center gap-2 text-xs font-black text-gray-300">
-                          <Clock size={12} className="text-orange-500" />
-                          {s.ends}
-                        </div>
-                     </div>
-
-                     <div className="flex-1 text-left lg:text-right flex flex-col items-start lg:items-end gap-3">
-                        <div className="bg-purple-500/10 border border-purple-500/20 px-4 py-2 rounded-xl">
-                           <p className="text-[8px] font-black text-purple-400 uppercase tracking-widest mb-0.5">{t.calendar.nextLevel}</p>
-                           <p className="text-[10px] font-black text-white uppercase">{s.upsell}</p>
-                        </div>
-                        <button className="flex items-center gap-2 text-[9px] font-black text-purple-500 uppercase hover:text-white transition-all">
-                          {t.calendar.upsellBtn} <Zap size={10} fill="currentColor" />
-                        </button>
-                     </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             {courses.map(course => (
+               <div key={course.id} className="bg-[#12141C] rounded-[3.5rem] border border-[#1F232B] overflow-hidden group flex hover:border-white/10 transition-all shadow-xl">
+                  <div className="w-48 h-full bg-black relative shrink-0">
+                     <img src={course.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" alt="" />
+                     <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent" />
                   </div>
-                ))}
-             </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-purple-900/40 to-[#12141C] border border-purple-500/20 rounded-[3rem] p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group shadow-2xl">
-             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-purple-600/20 transition-all duration-1000" />
-             <div className="flex items-center gap-8 relative z-10 text-left">
-                <div className="w-20 h-20 bg-purple-600/20 rounded-[2.5rem] flex items-center justify-center border border-purple-500/30 text-purple-400 shadow-lg">
-                  <Sparkles size={32} />
-                </div>
-                <div>
-                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">{t.ariBanner.title}</h3>
-                   <p className="text-gray-400 font-medium max-w-xl">{t.ariBanner.sub}</p>
-                </div>
-             </div>
-             <button 
-               onClick={() => onNavigate('courses-admin')}
-               className="px-8 py-5 bg-purple-600 hover:bg-purple-700 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-purple-600/20 transition-all flex items-center gap-3 relative z-10 whitespace-nowrap"
-             >
-               {t.ariBanner.btn} <Edit3 size={18} />
-             </button>
-          </div>
-
-          <div className="space-y-8">
-             <div className="flex items-center justify-between px-4 text-left">
-                <div className="flex items-center gap-3">
-                   <BarChart3 className="text-orange-400" size={20} />
-                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-100">{t.coursesTitle}</h3>
-                </div>
-                <button onClick={() => onNavigate('courses-admin')} className="text-[9px] font-black uppercase text-orange-400 hover:text-white transition-all">Додати новий +</button>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {courses.map(course => (
-                  <div key={course.id} className="bg-[#12141C] rounded-[3.5rem] border border-[#1F232B] overflow-hidden group flex hover:border-white/10 transition-all shadow-xl">
-                     <div className="w-48 h-full bg-black relative shrink-0">
-                        <img src={course.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" alt="" />
-                        {course.isExtensionCourse ? (
-                          <div className="absolute top-4 left-4 px-3 py-1 bg-purple-600 text-[8px] font-black uppercase rounded-lg">Magic Lash</div>
-                        ) : (
-                          <div className="absolute top-4 left-4 px-3 py-1 bg-yellow-600 text-[8px] font-black uppercase rounded-lg">InLei®</div>
-                        )}
+                  <div className="p-8 flex-1 flex flex-col justify-between text-left relative z-10">
+                     <div>
+                        <h4 className="text-xl font-black text-white uppercase mb-2 group-hover:text-orange-400 transition-colors">{course.title}</h4>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{course.studentCount || 0} учнів зареєстровано</p>
                      </div>
-                     <div className="p-8 flex-1 flex flex-col justify-between text-left">
-                        <div>
-                          <h4 className="text-xl font-black text-white uppercase mb-2 group-hover:text-orange-400 transition-colors">{course.title}</h4>
-                          <div className="flex gap-4">
-                             <div className="flex items-center gap-2">
-                                <Users size={12} className="text-gray-600" />
-                                <span className="text-[10px] font-black text-gray-500">{course.studentCount} учнів</span>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <DollarSign size={12} className="text-gray-600" />
-                                <span className="text-[10px] font-black text-gray-500">${course.price}</span>
-                             </div>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => { onSetActiveCourse(course.id); onNavigate('courses-admin'); }}
-                          className="mt-6 flex items-center justify-between w-full p-4 bg-[#0A0C10] rounded-2xl border border-[#1F232B] text-[10px] font-black uppercase text-gray-400 group-hover:text-white group-hover:border-orange-500/30 transition-all"
-                        >
-                           {t.edit} <ArrowRight size={14} />
-                        </button>
-                     </div>
+                     <button 
+                        onClick={() => { onSetActiveCourse(course.id); onNavigate('courses-admin'); }}
+                        className="mt-6 flex items-center justify-between w-full p-4 bg-[#0A0C10] rounded-2xl border border-[#1F232B] text-[10px] font-black uppercase text-gray-400 group-hover:text-white group-hover:border-purple-500/30 transition-all"
+                     >
+                        {t.edit} <ArrowRight size={14} />
+                     </button>
                   </div>
-                ))}
-             </div>
-          </div>
-
-          <div className="space-y-8">
-             <div className="flex items-center justify-between px-4 text-left">
-                <div className="flex items-center gap-3">
-                   <DollarSign className="text-green-400" size={20} />
-                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-100">{t.financeTitle}</h3>
-                </div>
-                <button onClick={() => onNavigate('finance')} className="text-[9px] font-black uppercase text-green-400 hover:text-white transition-all">{t.viewAll}</button>
-             </div>
-             <div className="bg-[#12141C] rounded-[3rem] border border-[#1F232B] overflow-hidden shadow-2xl">
-                <table className="w-full text-left">
-                   <thead className="bg-[#0A0C10]">
-                      <tr>
-                         <th className="px-10 py-5 text-[9px] font-black uppercase text-gray-500 tracking-widest">Студент</th>
-                         <th className="px-10 py-5 text-[9px] font-black uppercase text-gray-500 tracking-widest">Напрямок</th>
-                         <th className="px-10 py-5 text-[9px] font-black uppercase text-gray-500 tracking-widest">Борг</th>
-                         <th className="px-10 py-5 text-[9px] font-black uppercase text-gray-500 tracking-widest text-right pr-12">Статус</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-[#1F232B]">
-                      {invoices.slice(0, 5).map(inv => (
-                        <tr key={inv.id} className="hover:bg-white/5 transition-colors cursor-pointer" onClick={() => onNavigate('finance')}>
-                          <td className="px-10 py-6">
-                             <div className="flex items-center gap-4">
-                                <div className="w-8 h-8 bg-purple-600/10 rounded-lg flex items-center justify-center text-[10px] font-black text-purple-400">{inv.student.charAt(0)}</div>
-                                <span className="text-xs font-black text-gray-200">{inv.student}</span>
-                             </div>
-                          </td>
-                          <td className="px-10 py-6 text-xs font-bold text-gray-500">{inv.course}</td>
-                          <td className="px-10 py-6 text-xs font-black text-red-400">${inv.total - inv.paid}</td>
-                          <td className="px-10 py-6 text-right pr-12">
-                             <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase ${inv.status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                                {inv.status}
-                             </span>
-                          </td>
-                        </tr>
-                      ))}
-                   </tbody>
-                </table>
-             </div>
+               </div>
+             ))}
           </div>
         </div>
       </div>
@@ -391,24 +241,22 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
       {/* MODAL: ADD STUDENT */}
       {isAddStudentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-500">
-           <div className="bg-[#12141C] w-full max-w-4xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
+           <div className="bg-[#12141C] w-full max-w-5xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
               
-              <div className="w-full md:w-72 bg-[#0A0C10] p-10 border-r border-[#1F232B] hidden md:flex flex-col text-left">
+              <div className="w-full md:w-80 bg-[#0A0C10] p-10 border-r border-[#1F232B] hidden md:flex flex-col text-left">
                  <div className="mb-8">
                     <div className="w-20 h-20 bg-purple-600/10 rounded-[2rem] flex items-center justify-center text-purple-400 shadow-lg mb-6">
                        <UserPlus size={40} />
                     </div>
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">{t.modal.title}</h3>
-                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mt-2">{t.modal.sub}</p>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tight leading-none">{t.modal.title}</h3>
+                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mt-3">{t.modal.sub}</p>
                  </div>
-                 <div className="mt-auto space-y-6">
-                    <div className="flex items-center gap-3">
-                       <ShieldCheck className="text-green-500" size={16} />
-                       <span className="text-[9px] font-black text-gray-500 uppercase">Cloud Sync Active</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <Info className="text-purple-500" size={16} />
-                       <span className="text-[9px] font-black text-gray-500 uppercase">AI mapping ready</span>
+                 <div className="space-y-4 mt-auto">
+                    <div className="p-5 bg-white/5 rounded-3xl border border-white/5 backdrop-blur-sm">
+                       <p className="text-[8px] font-black text-gray-500 uppercase mb-2">Security Protocol</p>
+                       <p className="text-[10px] font-bold text-green-400 uppercase flex items-center gap-2">
+                          <ShieldCheck size={14} /> Cloud Storage Active
+                       </p>
                     </div>
                  </div>
               </div>
@@ -416,76 +264,110 @@ const SpecialistDashboard: React.FC<Props> = ({ courses, invoices, lang, onNavig
               <div className="flex-1 p-10 overflow-y-auto max-h-[90vh] custom-scrollbar">
                  <div className="flex justify-between items-center mb-10 md:hidden">
                     <h3 className="text-2xl font-black text-white uppercase">{t.modal.title}</h3>
-                    <button onClick={() => setIsAddStudentModalOpen(false)} className="text-gray-500"><X size={24} /></button>
+                    <button onClick={() => setIsAddStudentModalOpen(false)} className="text-gray-500"><X size={28} /></button>
                  </div>
 
                  <form onSubmit={handleRegisterStudent} className="space-y-8 text-left">
+                    {/* Прізвище та Ім'я */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.firstName}</label>
-                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.firstName} onChange={e => setNewStudent({...newStudent, firstName: e.target.value})} />
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.firstName}</label>
+                          <div className="relative">
+                             <User className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+                             <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.firstName} onChange={e => setNewStudent({...newStudent, firstName: e.target.value})} placeholder="Maria" />
+                          </div>
                        </div>
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.lastName}</label>
-                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.lastName} onChange={e => setNewStudent({...newStudent, lastName: e.target.value})} />
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.lastName}</label>
+                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.lastName} onChange={e => setNewStudent({...newStudent, lastName: e.target.value})} placeholder="Ivanova" />
                        </div>
                     </div>
 
+                    {/* Email та Телефон */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.email}</label>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.email}</label>
                           <div className="relative">
                              <Mail size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                             <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.email} onChange={e => setNewStudent({...newStudent, email: e.target.value})} />
+                             <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.email} onChange={e => setNewStudent({...newStudent, email: e.target.value})} placeholder="student@example.com" />
                           </div>
                        </div>
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.phone}</label>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.phone}</label>
                           <div className="relative">
                              <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                             <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.phone} onChange={e => setNewStudent({...newStudent, phone: e.target.value})} />
+                             <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.phone} onChange={e => setNewStudent({...newStudent, phone: e.target.value})} placeholder="+380..." />
                           </div>
                        </div>
                     </div>
 
+                    {/* Instagram та Рівень */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.source}</label>
-                          <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.source} onChange={e => setNewStudent({...newStudent, source: e.target.value})}>
-                             {Object.entries(t.modal.sourceOptions).map(([key, val]) => (
-                               <option key={key} value={key}>{val}</option>
-                             ))}
-                          </select>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.instagram}</label>
+                          <div className="relative">
+                             <Instagram size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <input className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50" value={newStudent.instagram} onChange={e => setNewStudent({...newStudent, instagram: e.target.value})} placeholder="@username" />
+                          </div>
                        </div>
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.course}</label>
-                          <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.courseId} onChange={e => setNewStudent({...newStudent, courseId: e.target.value})}>
-                             {courses.map(c => (
-                               <option key={c.id} value={c.id}>{c.title}</option>
-                             ))}
-                          </select>
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.level}</label>
+                          <div className="relative">
+                             <Award size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.level} onChange={e => setNewStudent({...newStudent, level: e.target.value})}>
+                                {Object.entries(t.modal.levels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                             </select>
+                          </div>
                        </div>
                     </div>
 
+                    {/* Джерело та Курс */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.source}</label>
+                          <div className="relative">
+                             <Target size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.source} onChange={e => setNewStudent({...newStudent, source: e.target.value})}>
+                                {Object.entries(t.modal.sourceOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                             </select>
+                          </div>
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.course}</label>
+                          <div className="relative">
+                             <Briefcase size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                             <select className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-5 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 appearance-none" value={newStudent.courseId} onChange={e => setNewStudent({...newStudent, courseId: e.target.value})}>
+                                {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                             </select>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Сума оплати */}
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.amount}</label>
+                       <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.amount}</label>
                        <div className="relative">
-                          <DollarSign size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-green-500" />
-                          <input type="number" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-6 pl-14 pr-8 text-xl font-black text-white outline-none focus:ring-1 ring-green-500/50" placeholder="0.00" value={newStudent.amount} onChange={e => setNewStudent({...newStudent, amount: e.target.value})} />
+                          <DollarSign size={24} className="absolute left-6 top-1/2 -translate-y-1/2 text-green-500" />
+                          <input type="number" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-7 pl-16 pr-8 text-2xl font-black text-white outline-none focus:ring-1 ring-green-500/50 shadow-inner" value={newStudent.amount} onChange={e => setNewStudent({...newStudent, amount: e.target.value})} placeholder="0.00" />
                        </div>
                     </div>
 
+                    {/* Коментарі */}
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest ml-4">{t.modal.comments}</label>
-                       <textarea className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-[2rem] py-5 px-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 h-32 resize-none" value={newStudent.comments} onChange={e => setNewStudent({...newStudent, comments: e.target.value})} />
+                       <label className="text-[10px] font-black uppercase text-gray-500 ml-4">{t.modal.comments}</label>
+                       <div className="relative">
+                          <MessageSquare size={16} className="absolute left-6 top-8 text-gray-600" />
+                          <textarea className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-6 pl-14 pr-8 text-sm font-bold text-white outline-none focus:ring-1 ring-purple-500/50 h-32 resize-none transition-all" value={newStudent.comments} onChange={e => setNewStudent({...newStudent, comments: e.target.value})} placeholder="Додаткові деталі про студента, побажання або технічні нотатки..." />
+                       </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                       <button type="button" onClick={() => setIsAddStudentModalOpen(false)} className="flex-1 py-5 bg-[#1F232B] text-gray-500 rounded-3xl font-black uppercase text-[10px] tracking-widest transition-all hover:text-white">
-                         {t.modal.cancel}
+                    {/* Кнопки дії */}
+                    <div className="flex gap-4 pt-6">
+                       <button type="button" onClick={() => setIsAddStudentModalOpen(false)} className="flex-1 py-6 bg-[#1F232B] text-gray-500 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:text-white transition-all">
+                          {t.modal.cancel}
                        </button>
-                       <button type="submit" className="flex-[2] py-5 bg-purple-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-purple-900/30 transition-all hover:bg-purple-700">
-                         {t.modal.submit}
+                       <button type="submit" className="flex-[2] py-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-purple-900/40 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                          <Zap size={16} /> {t.modal.submit}
                        </button>
                     </div>
                  </form>
