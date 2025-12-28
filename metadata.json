@@ -1,0 +1,8 @@
+{
+  "name": "Magic Lash HUB AI",
+  "description": "Інтелектуальна платформа для навчання та управління фінансами в індустрії краси з використанням Gemini та Veo.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
