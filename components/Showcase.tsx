@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, Star, ArrowRight, Zap, ShieldCheck, Sparkles, 
   CreditCard, X, CheckCircle2, Shield, Apple, Smartphone,
-  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare
+  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare, Phone, Target
 } from 'lucide-react';
 import { Course, Invoice, TabType, Language } from '../types';
 
@@ -17,8 +18,14 @@ type CheckoutStep = 'form' | 'processing' | 'success';
 const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
   const [selectedProduct, setSelectedProduct] = useState<Partial<Course> | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('form');
-  const [userName, setUserName] = useState('');
+  
+  // Дані форми
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [userPhone, setUserPhone] = useState('');
+  const [leadSource, setLeadSource] = useState('instagram');
+  
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple' | 'google'>('card');
   const [progress, setProgress] = useState(0);
 
@@ -34,6 +41,17 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
       select: 'Обрати',
       checkoutTitle: 'Реєстрація у HUB',
       checkoutSub: 'Починаємо майбутнє',
+      firstName: "Твоє ім'я",
+      lastName: 'Прізвище',
+      phone: 'Номер телефону',
+      source: 'Звідки ви про нас дізналися?',
+      sourceOptions: {
+        instagram: 'Instagram',
+        whatsapp: 'WhatsApp / Messengers',
+        ads: 'Реклама (FB/IG)',
+        referral: 'Рекомендація / Реферал',
+        other: 'Інше'
+      },
       payment: 'Метод оплати',
       payButton: 'ПРИЄДНАТИСЯ ТА ВІДКРИТИ ARI',
       success: 'Ти в команді!',
@@ -50,6 +68,17 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
       select: 'Select',
       checkoutTitle: 'Registration in HUB',
       checkoutSub: 'Starting the future',
+      firstName: 'First Name',
+      lastName: 'Last Name',
+      phone: 'Phone Number',
+      source: 'How did you hear about us?',
+      sourceOptions: {
+        instagram: 'Instagram',
+        whatsapp: 'WhatsApp / Messengers',
+        ads: 'Ads (FB/IG)',
+        referral: 'Referral',
+        other: 'Other'
+      },
       payment: 'Payment Method',
       payButton: 'JOIN AND OPEN ARI',
       success: 'You are in!',
@@ -85,16 +114,20 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
     setProgress(0);
     
     if (selectedProduct) {
-      // Fix: Додано обов'язкове поле 'payments' для відповідності інтерфейсу Invoice
       const newInvoice: Invoice = {
         id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
-        student: userName || (lang === 'uk' ? 'Новий Спеціаліст' : 'New Specialist'),
+        student: `${firstName} ${lastName}`.trim() || (lang === 'uk' ? 'Новий Спеціаліст' : 'New Specialist'),
         course: selectedProduct.title || 'Напрямок',
         total: selectedProduct.price || 0,
         paid: selectedProduct.price || 0,
         status: 'paid',
         dueDate: new Date().toISOString().split('T')[0],
-        payments: []
+        payments: [{
+          id: `p-${Date.now()}`,
+          amount: selectedProduct.price || 0,
+          date: new Date().toISOString().split('T')[0],
+          note: `Registration: ${userPhone} | Source: ${leadSource}`
+        }]
       };
       onPurchase(newInvoice);
     }
@@ -103,8 +136,11 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
   const closeCheckout = () => {
     setSelectedProduct(null);
     setCheckoutStep('form');
-    setUserName('');
+    setFirstName('');
+    setLastName('');
     setUserEmail('');
+    setUserPhone('');
+    setLeadSource('instagram');
     setProgress(0);
   };
 
@@ -118,8 +154,6 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
           <h1 className="text-7xl md:text-8xl font-black text-gray-100 tracking-tighter uppercase">{t.title}</h1>
           <p className="text-gray-400 max-w-2xl mx-auto font-medium">{t.subtitle}</p>
         </div>
-
-        {/* ARI BANNER REMOVED AS PER REQUEST */}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
           {products.map((product) => (
@@ -154,7 +188,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
 
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl animate-in fade-in duration-500">
-          <div className="relative bg-[#12141C] w-full max-w-4xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
+          <div className="relative bg-[#12141C] w-full max-w-5xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
             <div className="w-full md:w-80 bg-[#0A0C10] p-10 border-r border-[#1F232B] hidden md:flex flex-col text-left">
               <div className="mb-8">
                  <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-4">{lang === 'uk' ? 'Твій вибір' : 'Your choice'}</h4>
@@ -165,10 +199,10 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col min-h-[600px]">
+            <div className="flex-1 flex flex-col min-h-[600px] overflow-y-auto">
               {checkoutStep === 'form' && (
                 <>
-                  <div className="p-10 border-b border-[#1F232B] flex items-center justify-between text-left">
+                  <div className="p-10 border-b border-[#1F232B] flex items-center justify-between text-left shrink-0">
                     <div>
                       <h3 className="text-2xl font-black text-gray-100 uppercase tracking-tight">{t.checkoutTitle}</h3>
                       <p className={`text-[10px] font-black uppercase ${selectedProduct.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} tracking-widest mt-1`}>
@@ -178,21 +212,52 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
                     <button onClick={closeCheckout} className="p-4 bg-[#0A0C10] hover:bg-[#1F232B] rounded-2xl text-gray-500 transition-colors"><X size={20} /></button>
                   </div>
                   
-                  <form onSubmit={handleInitiatePayment} className="p-10 space-y-8 flex-1 text-left overflow-y-auto">
+                  <form onSubmit={handleInitiatePayment} className="p-10 space-y-8 flex-1 text-left">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{lang === 'uk' ? "Твоє ім'я" : "Your Name"}</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.firstName}</label>
                         <div className="relative">
                           <User size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="Maria Ivanova" />
+                          <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="Maria" value={firstName} onChange={e => setFirstName(e.target.value)} />
                         </div>
                       </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.lastName}</label>
+                        <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 px-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="Ivanova" value={lastName} onChange={e => setLastName(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">Email</label>
                         <div className="relative">
                           <Mail size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                          <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="example@mail.com" />
+                          <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="example@mail.com" value={userEmail} onChange={e => setUserEmail(e.target.value)} />
                         </div>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.phone}</label>
+                        <div className="relative">
+                          <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                          <input required type="tel" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="+380..." value={userPhone} onChange={e => setUserPhone(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.source}</label>
+                      <div className="relative">
+                        <Target size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                        <select 
+                          className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-12 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none appearance-none" 
+                          value={leadSource} 
+                          onChange={e => setLeadSource(e.target.value)}
+                        >
+                          {Object.entries(t.sourceOptions).map(([k, v]) => (
+                            <option key={k} value={k} className="bg-[#12141C]">{v}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
                       </div>
                     </div>
 
@@ -200,7 +265,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.payment}</label>
                       <div className="grid grid-cols-3 gap-4">
                         {['card', 'apple', 'google'].map(m => (
-                          <button key={m} type="button" onClick={() => setPaymentMethod(m as any)} className={`p-6 border rounded-[2.5rem] flex flex-col items-center gap-3 transition-all ${paymentMethod === m ? 'border-purple-500 text-purple-400' : 'bg-[#0A0C10] border-[#1F232B] text-gray-600'}`}>
+                          <button key={m} type="button" onClick={() => setPaymentMethod(m as any)} className={`p-6 border rounded-[2.5rem] flex flex-col items-center gap-3 transition-all ${paymentMethod === m ? 'border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-[#0A0C10] border-[#1F232B] text-gray-600'}`}>
                             {m === 'card' ? <CreditCard size={20} /> : m === 'apple' ? <Apple size={20} /> : <Smartphone size={20} />}
                           </button>
                         ))}
@@ -216,13 +281,26 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
                 </>
               )}
 
+              {checkoutStep === 'processing' && (
+                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center space-y-12">
+                   <div className="relative">
+                      <Loader2 className={`w-24 h-24 animate-spin ${selectedProduct?.isExtensionCourse ? 'text-purple-500' : 'text-yellow-500'}`} />
+                      <div className="absolute inset-0 flex items-center justify-center font-black text-xs">{progress}%</div>
+                   </div>
+                   <div className="space-y-2">
+                      <h3 className="text-xl font-black text-white uppercase tracking-widest">Обробка транзакції...</h3>
+                      <p className="text-gray-500 text-xs uppercase tracking-tight">Будь ласка, не закривайте вікно</p>
+                   </div>
+                </div>
+              )}
+
               {checkoutStep === 'success' && (
                 <div className="flex-1 flex flex-col items-center justify-center p-20 text-center space-y-12 animate-in zoom-in duration-500">
                   <div className="w-32 h-32 bg-green-500/10 border-2 border-green-500/30 rounded-[3.5rem] flex items-center justify-center text-green-400 mx-auto shadow-2xl">
                     <Trophy size={64} className="animate-bounce" />
                   </div>
                   <h3 className="text-4xl font-black text-gray-100 uppercase tracking-tight">{t.success}</h3>
-                  <button onClick={() => { onNavigate('my-courses'); closeCheckout(); }} className={`w-full py-6 ${selectedProduct.isExtensionCourse ? 'bg-purple-600' : 'bg-yellow-600'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] transition-all`}>
+                  <button onClick={() => { onNavigate('my-courses'); closeCheckout(); }} className={`w-full py-6 ${selectedProduct?.isExtensionCourse ? 'bg-purple-600 shadow-purple-900/40' : 'bg-yellow-600 shadow-yellow-900/40'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] transition-all`}>
                     {t.toProgram}
                   </button>
                 </div>

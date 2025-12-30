@@ -43,7 +43,7 @@ const App: React.FC = () => {
         setActiveTab('specialist-dashboard');
       }
     }
-  }, [role, activeTab]);
+  }, [role]);
 
   const t = useMemo(() => {
     const translations = {
@@ -97,11 +97,9 @@ const App: React.FC = () => {
           id: 'l1', 
           title: language === 'uk' ? 'Хімія складів' : 'Chemistry of Formulations',
           steps: [
-            { id: 1, type: 'lecture', title: language === 'uk' ? 'Привітання' : 'Introduction', aiPrompt: 'Cinematic laboratory welcome for InLei technicians.', ragQuery: 'InLei logo and filler ingredients.', media: '' },
+            { id: 1, type: 'lecture', title: language === 'uk' ? 'Привітання' : 'Introduction', aiPrompt: '...', ragQuery: 'inlei-intro', media: 'margarita_inlei.mp4' },
             { id: 2, type: 'quiz', title: language === 'uk' ? 'Тест: Час експозиції' : 'Quiz: Exposure Time', question: '...', correctAnswer: '...' }
-          ],
-          aiPrompt: 'InLei Lash Filler scientific approach intro.',
-          ragQuery: 'InLei 25.9 ingredients and clinical study results.'
+          ]
         }
       ]
     },
@@ -113,17 +111,7 @@ const App: React.FC = () => {
       studentCount: 28,
       description: 'Нарощування вій: від 2D до 5D. Геометрія пучка, площа зчіпки та мікровідступи.',
       image: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&q=80&w=400',
-      lessons: [
-         { 
-          id: 'l2', 
-          title: language === 'uk' ? 'Основи Геометрії' : 'Geometry Basics',
-          steps: [
-            { id: 1, type: 'lecture', title: 'Perfect Fan', aiPrompt: 'Macro video of creating a perfect 3D lash fan.', ragQuery: '3D fan width and symmetry rules.', media: '' }
-          ],
-          aiPrompt: 'Cinematic intro to eyelash geometry and fan creation.',
-          ragQuery: 'Geometry principles for 2D-5D volume extensions.'
-        }
-      ]
+      lessons: []
     }
   ]);
 
@@ -154,31 +142,24 @@ const App: React.FC = () => {
       payments: [
         { id: 'p3', amount: 20, date: '2025-03-01', note: 'Бронювання місця' }
       ]
-    }
+    },
+    { 
+      id: 'INV-003', 
+      student: 'Марія Іванова', 
+      instructorName: 'Анна Сидорчук',
+      course: 'Lash Adhesive Master', 
+      total: 300, 
+      paid: 300, 
+      status: 'paid', 
+      dueDate: '2025-04-10',
+      payments: [
+        { id: 'p4', amount: 300, date: '2025-01-15', note: 'Повна оплата' }
+      ]
+    },
   ]);
-
-  const [activeCourseId, setActiveCourseId] = useState('c1');
-  const activeCourse = useMemo(() => courses.find(c => c.id === activeCourseId) || courses[0], [courses, activeCourseId]);
 
   const handleAddInvoice = (newInv: Invoice) => {
     setInvoices(prev => [newInv, ...prev]);
-  };
-
-  const handleAddCourse = () => {
-    if (role !== 'admin' && role !== 'specialist') return;
-    const newCourse: Course = {
-      id: `c${courses.length + 1}`,
-      title: t.newProgram,
-      isExtensionCourse: true,
-      lessons: [{ id: `l${Date.now()}`, title: language === 'uk' ? 'Вступ' : 'Intro', steps: [{ id: 1, type: 'lecture', title: 'Intro Step', aiPrompt: '', ragQuery: '', comments: '' }] }]
-    };
-    setCourses([...courses, newCourse]);
-    setActiveCourseId(newCourse.id);
-  };
-
-  const handleCourseClick = (courseId: string) => {
-    setActiveCourseId(courseId);
-    setActiveTab('courses-admin');
   };
 
   const sidebarItems = useMemo(() => {
@@ -194,6 +175,21 @@ const App: React.FC = () => {
     ];
     return allItems.filter(item => item.roles.includes(role));
   }, [role, t]);
+
+  const [activeCourseId, setActiveCourseId] = useState('c1');
+  const activeCourse = useMemo(() => courses.find(c => c.id === activeCourseId) || courses[0], [courses, activeCourseId]);
+
+  const handleAddCourse = () => {
+    if (role !== 'admin' && role !== 'specialist') return;
+    const newCourse: Course = {
+      id: `c${courses.length + 1}`,
+      title: t.newProgram,
+      isExtensionCourse: true,
+      lessons: [{ id: `l${Date.now()}`, title: language === 'uk' ? 'Вступ' : 'Intro', steps: [{ id: 1, type: 'lecture', title: 'Geometry', aiPrompt: '', ragQuery: '', comments: '' }] }]
+    };
+    setCourses([...courses, newCourse]);
+    setActiveCourseId(newCourse.id);
+  };
 
   const roleMeta = {
     guest: { icon: UserPlus, label: t.roles.guest, color: 'text-gray-400' },
@@ -228,7 +224,10 @@ const App: React.FC = () => {
                   : 'hover:bg-[#1F232B] text-gray-400 hover:text-gray-200'
               }`}
             >
-              <item.icon size={22} className={activeTab === item.id ? 'scale-110' : 'group-hover:scale-110 transition-transform'} />
+              {activeTab === item.id && (
+                <div className="absolute inset-0 bg-white/10 opacity-20 blur-xl animate-pulse" />
+              )}
+              <item.icon size={22} className={activeTab === item.id ? 'scale-110 transition-transform' : 'group-hover:scale-110 transition-transform'} />
               {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-[0.15em]">{item.label}</span>}
             </button>
           ))}
@@ -250,15 +249,15 @@ const App: React.FC = () => {
                 {courses.map(course => (
                   <button
                     key={course.id}
-                    onClick={() => handleCourseClick(course.id)}
+                    onClick={() => { setActiveCourseId(course.id); setActiveTab('courses-admin'); }}
                     className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative group ${
                       activeCourseId === course.id && activeTab === 'courses-admin'
-                        ? (course.isExtensionCourse ? 'bg-purple-500/5 border-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.1)]') 
+                        ? (course.isExtensionCourse ? 'bg-purple-500/5 border-purple-500/20 text-purple-400' : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.05)]') 
                         : 'border-transparent text-gray-500 hover:bg-[#1F232B] hover:text-gray-300'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-1.5 h-1.5 rounded-full ${course.isExtensionCourse ? 'bg-purple-500' : 'bg-yellow-500'}`} />
+                      <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)] ${course.isExtensionCourse ? 'bg-purple-500' : 'bg-yellow-500'}`} />
                       <span className="text-[10px] font-black uppercase tracking-widest truncate block leading-none">{course.title}</span>
                     </div>
                   </button>
@@ -270,7 +269,7 @@ const App: React.FC = () => {
 
         {isSidebarOpen && (
           <div className="p-6 border-t border-[#1F232B] shrink-0">
-            <div className="bg-[#0A0C10] p-4 rounded-3xl border border-[#1F232B] flex items-center gap-4 group transition-all">
+            <div className="bg-[#0A0C10] p-4 rounded-3xl border border-[#1F232B] flex items-center gap-4 group cursor-pointer hover:border-purple-500/30 transition-all">
               <div className="w-12 h-12 bg-[#12141C] border border-[#1F232B] rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
                 {React.createElement(roleMeta[role].icon, { size: 24, className: roleMeta[role].color })}
               </div>
@@ -320,11 +319,13 @@ const App: React.FC = () => {
         <div className="flex-1 min-h-0 flex flex-col relative">
           {activeTab === 'showcase' && <Showcase lang={language} onPurchase={handleAddInvoice} onNavigate={setActiveTab} />}
           {activeTab === 'guest-chat' && role === 'guest' && <GuestChat lang={language} courses={courses} onPurchase={handleAddInvoice} onNavigate={setActiveTab} />}
+          
+          {/* СУВОРЕ РОЗМЕЖУВАННЯ КОНТЕНТУ ЗА РОЛЯМИ */}
           {activeTab === 'specialist-dashboard' && (role === 'specialist' || role === 'admin') && (
             <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} onAddInvoice={handleAddInvoice} />
           )}
           {activeTab === 'my-courses' && role === 'student' && (
-            <StudentDashboard lang={language} activeCourse={activeCourse} />
+            <StudentDashboard lang={language} activeCourse={activeCourse} invoices={invoices.filter(i => i.student === currentStudentName)} />
           )}
           {activeTab === 'courses-admin' && (role === 'admin' || role === 'specialist') && (
             <CourseEditor lang={language} course={activeCourse} onUpdate={(u) => setCourses(courses.map(c => c.id === u.id ? u : c))} />

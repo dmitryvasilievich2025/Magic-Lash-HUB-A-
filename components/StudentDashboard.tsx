@@ -3,16 +3,18 @@ import React, { useMemo } from 'react';
 import { 
   Play, CheckCircle2, Clock, Award, BookOpen, 
   ArrowRight, Zap, GraduationCap, Star, Trophy, 
-  Target, Sparkles, ShieldCheck, ChevronRight
+  Target, Sparkles, ShieldCheck, ChevronRight,
+  DollarSign, History, CreditCard, AlertCircle
 } from 'lucide-react';
-import { Course, Language } from '../types';
+import { Course, Language, Invoice } from '../types';
 
 interface Props {
   activeCourse?: Course;
+  invoices: Invoice[];
   lang: Language;
 }
 
-const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
+const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => {
   const isExtension = activeCourse?.isExtensionCourse || false;
   
   const t = useMemo(() => ({
@@ -30,7 +32,16 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
       nextStep: 'Наступний крок',
       featured: 'Рекомендовано для твого росту',
       achievements: 'Твої досягнення',
-      viewAll: 'Дивитись всі'
+      viewAll: 'Дивитись всі',
+      finance: {
+        title: 'Фінансовий розвиток',
+        total: 'Загальна вартість',
+        paid: 'Інвестовано',
+        debt: 'Залишок до сплати',
+        history: 'Історія транзакцій',
+        noPayments: 'Транзакцій ще не було',
+        status: 'Статус рахунку'
+      }
     },
     en: {
       welcome: 'Hello, Maria!',
@@ -46,11 +57,31 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
       nextStep: 'Next Step',
       featured: 'Featured for Your Growth',
       achievements: 'Your Achievements',
-      viewAll: 'View All'
+      viewAll: 'View All',
+      finance: {
+        title: 'Financial Growth',
+        total: 'Total Value',
+        paid: 'Invested',
+        debt: 'Remaining Balance',
+        history: 'Transaction History',
+        noPayments: 'No transactions yet',
+        status: 'Account Status'
+      }
     }
   }[lang]), [lang]);
 
-  // Mocked recommendations based on active course
+  // Розрахунок фінансової статистики студента
+  const financeSummary = useMemo(() => {
+    const total = invoices.reduce((a, b) => a + b.total, 0);
+    const paid = invoices.reduce((a, b) => a + b.paid, 0);
+    const debt = total - paid;
+    const allPayments = invoices.flatMap(inv => 
+      inv.payments.map(p => ({ ...p, course: inv.course }))
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return { total, paid, debt, allPayments };
+  }, [invoices]);
+
   const recommendations = [
     { id: 'f1', title: 'Advanced Chemistry 2.0', icon: Zap, level: 'Expert', color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { id: 'f2', title: 'Speed Lash Technique', icon: Clock, level: 'Pro', color: 'text-purple-400', bg: 'bg-purple-500/10' },
@@ -59,9 +90,9 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0A0C10] p-10 custom-scrollbar animate-in fade-in duration-700">
-      <div className="max-w-7xl mx-auto space-y-12 text-left">
+      <div className="max-w-7xl mx-auto space-y-12 text-left pb-20">
         
-        {/* Header Section with Mastery Showcase */}
+        {/* Header Section */}
         <div className="relative p-12 rounded-[4rem] bg-gradient-to-br from-[#12141C] to-[#0A0C10] border border-white/5 shadow-2xl overflow-hidden group">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
           
@@ -109,18 +140,101 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
           </div>
         </div>
 
-        {/* Active Programs & Achievements Grid */}
+        {/* Financial Section & Achievements Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* Active Course Card */}
           <div className="lg:col-span-8 space-y-6">
             <div className="flex items-center justify-between px-4">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">{t.activeTitle}</h3>
-              <button className="text-[9px] font-black uppercase text-purple-400 tracking-widest hover:text-white transition-colors flex items-center gap-2">
-                {t.viewAll} <ChevronRight size={12} />
-              </button>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">{t.finance.title}</h3>
+              <div className="flex items-center gap-2">
+                 <div className={`w-2 h-2 rounded-full ${financeSummary.debt > 0 ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t.finance.status}</span>
+              </div>
             </div>
             
-            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 flex flex-col md:flex-row gap-10 shadow-xl relative overflow-hidden group cursor-pointer hover:border-purple-500/20 transition-all duration-500">
+            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 shadow-xl space-y-10 relative overflow-hidden group">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-[#0A0C10] p-6 rounded-3xl border border-white/5 relative overflow-hidden">
+                     <div className="absolute -right-4 -top-4 opacity-5 rotate-12"><DollarSign size={80} /></div>
+                     <p className="text-[9px] font-black text-gray-600 uppercase mb-2 tracking-widest">{t.finance.total}</p>
+                     <p className="text-2xl font-black text-white tracking-tighter">${financeSummary.total}</p>
+                  </div>
+                  <div className="bg-[#0A0C10] p-6 rounded-3xl border border-green-500/10 relative overflow-hidden">
+                     <div className="absolute -right-4 -top-4 opacity-5 rotate-12 text-green-500"><Zap size={80} /></div>
+                     <p className="text-[9px] font-black text-green-600 uppercase mb-2 tracking-widest">{t.finance.paid}</p>
+                     <p className="text-2xl font-black text-green-400 tracking-tighter">${financeSummary.paid}</p>
+                  </div>
+                  <div className={`p-6 rounded-3xl border relative overflow-hidden ${financeSummary.debt > 0 ? 'bg-red-500/5 border-red-500/10' : 'bg-gray-500/5 border-white/5'}`}>
+                     <div className="absolute -right-4 -top-4 opacity-5 rotate-12 text-red-500"><AlertCircle size={80} /></div>
+                     <p className="text-[9px] font-black text-red-600 uppercase mb-2 tracking-widest">{t.finance.debt}</p>
+                     <p className="text-2xl font-black text-red-400 tracking-tighter">${financeSummary.debt}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.25em] flex items-center gap-3">
+                     <History size={16} className="text-purple-400" /> {t.finance.history}
+                  </h4>
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-4 custom-scrollbar">
+                     {financeSummary.allPayments.length > 0 ? financeSummary.allPayments.map((payment, i) => (
+                        <div key={i} className="flex items-center justify-between bg-[#0A0C10] p-5 rounded-2xl border border-white/5 group/pay transition-all hover:border-purple-500/20">
+                           <div className="flex items-center gap-5 text-left">
+                              <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center text-purple-400 border border-white/5">
+                                 <CreditCard size={20} />
+                              </div>
+                              <div>
+                                 <p className="text-[11px] font-black text-gray-200 uppercase tracking-widest">{payment.course}</p>
+                                 <p className="text-[9px] font-bold text-gray-600 uppercase mt-1">{payment.note || 'Інвестиція в навчання'}</p>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-sm font-black text-white">+${payment.amount}</p>
+                              <p className="text-[8px] font-black text-gray-700 uppercase mt-1">{payment.date}</p>
+                           </div>
+                        </div>
+                     )) : (
+                        <div className="py-10 text-center opacity-20">
+                           <History size={40} className="mx-auto mb-3" />
+                           <p className="text-[10px] font-black uppercase tracking-widest">{t.finance.noPayments}</p>
+                        </div>
+                     )}
+                  </div>
+               </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 space-y-6">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.achievements}</h3>
+            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 h-full flex flex-col justify-between shadow-xl">
+               <div className="space-y-6">
+                  {[
+                    { title: 'Fast Learner', date: '2 days ago', icon: Zap, color: 'text-yellow-400' },
+                    { title: 'Perfect Quiz', date: 'Last week', icon: CheckCircle2, color: 'text-green-400' },
+                    { title: 'InLei® Expert', date: 'Feb 2025', icon: Award, color: 'text-purple-400' }
+                  ].map((ach, i) => (
+                    <div key={i} className="flex items-center gap-5 group/item">
+                       <div className={`w-14 h-14 bg-[#0A0C10] border border-white/5 rounded-2xl flex items-center justify-center ${ach.color} shadow-lg group-hover/item:scale-110 transition-transform`}>
+                          <ach.icon size={24} />
+                       </div>
+                       <div>
+                          <p className="text-[11px] font-black text-gray-100 uppercase tracking-widest text-left">{ach.title}</p>
+                          <p className="text-[9px] font-bold text-gray-600 uppercase mt-1 text-left">{ach.date}</p>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+               <div className="pt-8 border-t border-white/5 text-center mt-10">
+                  <div className="inline-flex items-center gap-2 px-6 py-3 bg-[#0A0C10] rounded-2xl border border-white/5 text-[9px] font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-white hover:border-purple-500/30 transition-all">
+                     <Star size={12} className="text-yellow-500" /> Mastery Journey Info
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Program Card */}
+        <div className="space-y-6">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.activeTitle}</h3>
+            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 flex flex-col md:flex-row gap-10 shadow-xl relative overflow-hidden group cursor-pointer hover:border-purple-500/20 transition-all duration-500 text-left">
                <div className="absolute top-0 left-0 w-2 h-full bg-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                <div className="w-full md:w-64 h-48 bg-[#0A0C10] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-inner">
                   <img 
@@ -158,39 +272,9 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
                   </div>
                </div>
             </div>
-          </div>
-
-          {/* Quick Stats / Achievements */}
-          <div className="lg:col-span-4 space-y-6">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.achievements}</h3>
-            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 h-full flex flex-col justify-between shadow-xl">
-               <div className="space-y-6">
-                  {[
-                    { title: 'Fast Learner', date: '2 days ago', icon: Zap, color: 'text-yellow-400' },
-                    { title: 'Perfect Quiz', date: 'Last week', icon: CheckCircle2, color: 'text-green-400' },
-                    { title: 'InLei® Expert', date: 'Feb 2025', icon: Award, color: 'text-purple-400' }
-                  ].map((ach, i) => (
-                    <div key={i} className="flex items-center gap-5 group/item">
-                       <div className={`w-14 h-14 bg-[#0A0C10] border border-white/5 rounded-2xl flex items-center justify-center ${ach.color} shadow-lg group-hover/item:scale-110 transition-transform`}>
-                          <ach.icon size={24} />
-                       </div>
-                       <div>
-                          <p className="text-[11px] font-black text-gray-100 uppercase tracking-widest">{ach.title}</p>
-                          <p className="text-[9px] font-bold text-gray-600 uppercase mt-1">{ach.date}</p>
-                       </div>
-                    </div>
-                  ))}
-               </div>
-               <div className="pt-8 border-t border-white/5 text-center">
-                  <div className="inline-flex items-center gap-2 px-6 py-3 bg-[#0A0C10] rounded-2xl border border-white/5 text-[9px] font-black text-gray-500 uppercase tracking-widest cursor-pointer hover:text-white hover:border-purple-500/30 transition-all">
-                     <Star size={12} className="text-yellow-500" /> Mastery Journey Info
-                  </div>
-               </div>
-            </div>
-          </div>
         </div>
 
-        {/* Featured Discovery Section */}
+        {/* Featured Discovery */}
         <div className="space-y-8">
            <div className="flex items-center gap-4 px-4">
               <Sparkles size={20} className="text-purple-400" />
@@ -198,7 +282,7 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
            </div>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {recommendations.map(item => (
-                <div key={item.id} className="bg-[#12141C] border border-white/5 rounded-[3rem] p-8 shadow-xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden">
+                <div key={item.id} className="bg-[#12141C] border border-white/5 rounded-[3rem] p-8 shadow-xl hover:-translate-y-2 transition-all duration-500 group relative overflow-hidden text-left">
                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
                       <item.icon size={80} />
                    </div>
@@ -220,15 +304,6 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, lang }) => {
               ))}
            </div>
         </div>
-
-        {/* Bottom Footer Decor */}
-        <div className="flex justify-center pt-10 opacity-20">
-           <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-              <p className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">Magic Lash HUB Professional Dashboard</p>
-           </div>
-        </div>
-
       </div>
     </div>
   );

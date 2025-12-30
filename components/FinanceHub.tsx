@@ -4,13 +4,8 @@ import {
   TrendingUp, AlertCircle, CreditCard, 
   Plus, Search, Edit3, X, ChevronLeft, 
   Calendar, ChevronRight, User, Book, 
-  History, DollarSign, ArrowDownCircle, Trash2, GraduationCap, Briefcase, UserCheck, Save,
-  BarChart3, Activity, PieChart
+  History, DollarSign, ArrowDownCircle, Trash2, GraduationCap, Briefcase, UserCheck, Save
 } from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  BarChart, Bar, Cell, Legend
-} from 'recharts';
 import { Invoice, PaymentRecord, Language, UserRole } from '../types';
 
 interface Props {
@@ -23,7 +18,7 @@ interface Props {
 
 const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin', studentName = 'Марія Іванова', lang }) => {
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'table' | 'charts'>('charts');
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -53,8 +48,6 @@ const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin'
       title: isStudent ? 'МОЇ ФІНАНСИ' : 'ФІНАНСОВИЙ HUB',
       subtitle: isStudent ? 'Історія оплат та заборгованості' : 'CASHFLOW УПРАВЛІННЯ',
       newInvoice: 'Новий рахунок',
-      analytics: 'Аналітика Трендів',
-      list: 'Список Рахунків',
       stats: { 
         revenue: isStudent ? 'СПЛАЧЕНО МНОЮ' : 'ОТРИМАНО (HUB)', 
         debt: isStudent ? 'МІЙ БОРГ' : 'ОЧІКУЄТЬСЯ (БОРГ)' 
@@ -87,8 +80,6 @@ const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin'
       title: isStudent ? 'MY FINANCES' : 'FINANCE HUB',
       subtitle: isStudent ? 'History and debts' : 'CASHFLOW MANAGEMENT',
       newInvoice: 'New Invoice',
-      analytics: 'Trend Analytics',
-      list: 'Invoice List',
       stats: { revenue: 'TOTAL PAID', debt: 'EXPECTED DEBT' },
       table: { user: 'Student', debt: 'Debt', teacher: 'Instructor', status: 'Status', actions: 'Actions', course: 'Course' },
       modal: {
@@ -115,35 +106,6 @@ const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin'
       }
     }
   }[lang]), [lang, isStudent]);
-
-  // ПІДГОТОВКА ДАНИХ ДЛЯ ГРАФІКІВ
-  const chartData = useMemo(() => {
-    const dailyMap: Record<string, { date: string, income: number, debt: number }> = {};
-    const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    
-    // Ініціалізація днів місяця
-    for (let i = 1; i <= daysInMonth; i++) {
-      const day = i.toString().padStart(2, '0');
-      const dateKey = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${day}`;
-      dailyMap[dateKey] = { date: day, income: 0, debt: 0 };
-    }
-
-    // Додаємо доходи з платежів
-    invoices.forEach(inv => {
-      inv.payments.forEach(p => {
-        if (dailyMap[p.date]) {
-          dailyMap[p.date].income += p.amount;
-        }
-      });
-      // Додаємо борги за дедлайнами
-      if (dailyMap[inv.dueDate]) {
-        dailyMap[inv.dueDate].debt += (inv.total - inv.paid);
-      }
-    });
-
-    return Object.values(dailyMap);
-  }, [invoices]);
 
   const handleCreateInvoice = (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,42 +200,15 @@ const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin'
   const totalPaid = (isStudent ? filteredInvoices : invoices).reduce((a, b) => a + b.paid, 0);
   const totalDebt = (isStudent ? filteredInvoices : invoices).reduce((a, b) => a + (b.total - b.paid), 0);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-[#12141C] border border-[#1F232B] p-4 rounded-2xl shadow-2xl">
-          <p className="text-[10px] font-black text-gray-500 uppercase mb-2">День: {label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-xs font-black flex items-center gap-2" style={{ color: entry.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color }} />
-              {entry.name}: ${entry.value}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0A0C10] text-left animate-in fade-in">
       <header className="h-20 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-10 shrink-0">
-        <div className="flex items-center gap-6">
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{t.title}</h2>
-            <p className="text-xl font-black text-gray-100 uppercase tracking-tight">{t.subtitle}</p>
-          </div>
-          <div className="flex bg-[#0A0C10] p-1.5 rounded-2xl border border-[#1F232B] ml-4">
-             <button onClick={() => setView('charts')} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${view === 'charts' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                <Activity size={14} className="inline mr-2" /> {t.analytics}
-             </button>
-             <button onClick={() => setView('table')} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${view === 'table' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                <BarChart3 size={14} className="inline mr-2" /> {t.list}
-             </button>
-          </div>
+        <div>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{t.title}</h2>
+          <p className="text-xl font-black text-gray-100 uppercase tracking-tight">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-4">
-          {!isStudent && view === 'table' && (
+          {!isStudent && (
             <div className="relative hidden md:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
               <input 
@@ -295,210 +230,107 @@ const FinanceHub: React.FC<Props> = ({ invoices, setInvoices, userRole = 'admin'
 
       <div className="flex-1 p-10 overflow-y-auto custom-scrollbar">
         <div className="max-w-7xl mx-auto space-y-10">
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#12141C] p-10 rounded-[2.5rem] border border-[#1F232B] space-y-3 shadow-xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <TrendingUp size={120} />
-              </div>
+            <div className="bg-[#12141C] p-10 rounded-[2.5rem] border border-[#1F232B] space-y-3 shadow-xl">
               <TrendingUp className="text-green-500" size={24} />
               <p className="text-[9px] font-black uppercase text-gray-500 tracking-[0.2em]">{t.stats.revenue}</p>
               <h4 className="text-4xl font-black text-white tracking-tighter">${totalPaid.toLocaleString()}</h4>
             </div>
-            <div className="bg-[#12141C] p-10 rounded-[2.5rem] border border-[#1F232B] space-y-3 shadow-xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <AlertCircle size={120} />
-              </div>
+            <div className="bg-[#12141C] p-10 rounded-[2.5rem] border border-[#1F232B] space-y-3 shadow-xl">
               <AlertCircle className="text-red-500" size={24} />
               <p className="text-[9px] font-black uppercase text-gray-500 tracking-[0.2em]">{t.stats.debt}</p>
               <h4 className="text-4xl font-black text-red-400 tracking-tighter">${totalDebt.toLocaleString()}</h4>
             </div>
           </div>
 
-          {view === 'charts' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main Cashflow Trend */}
-              <div className="lg:col-span-2 bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-2xl space-y-8">
-                <div className="flex items-center justify-between">
-                   <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                     <Activity size={16} className="text-purple-500" /> Динаміка Cashflow (Поточний Місяць)
-                   </h3>
-                </div>
-                <div className="h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorDebt" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1F232B" vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#4B5563', fontSize: 10, fontWeight: 900 }} 
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#4B5563', fontSize: 10, fontWeight: 900 }} 
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area 
-                        type="monotone" 
-                        dataKey="income" 
-                        name="Отримано" 
-                        stroke="#10b981" 
-                        strokeWidth={3} 
-                        fillOpacity={1} 
-                        fill="url(#colorIncome)" 
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="debt" 
-                        name="Борг (Дедлайн)" 
-                        stroke="#ef4444" 
-                        strokeWidth={3} 
-                        fillOpacity={1} 
-                        fill="url(#colorDebt)" 
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+          <div className="bg-[#12141C] rounded-[3.5rem] border border-[#1F232B] overflow-hidden shadow-2xl">
+            {isStudent ? (
+              <div className="p-10 space-y-10">
+                {filteredInvoices.map(inv => (
+                  <div key={inv.id} className="bg-[#0A0C10] rounded-[3rem] border border-[#1F232B] overflow-hidden p-10 space-y-8">
+                     <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-[10px] font-black text-purple-400 uppercase mb-1">{inv.course}</p>
+                          <h3 className="text-2xl font-black text-white">{inv.id}</h3>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-[9px] font-black text-gray-600 uppercase mb-1">{t.personal.remaining}</p>
+                           <p className="text-2xl font-black text-red-400">${inv.total - inv.paid}</p>
+                        </div>
+                     </div>
+                     <div className="space-y-4">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{t.personal.history}</p>
+                        <div className="grid gap-3">
+                           {inv.payments.length > 0 ? inv.payments.map(p => (
+                             <div key={p.id} className="flex justify-between items-center bg-[#12141C] p-4 rounded-2xl border border-white/5">
+                                <span className="text-xs font-black text-gray-200">${p.amount} <span className="text-gray-600 font-medium">— {p.note}</span></span>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase">{p.date}</span>
+                             </div>
+                           )) : (
+                             <p className="text-xs text-gray-600 italic">Оплат ще не було</p>
+                           )}
+                        </div>
+                     </div>
+                  </div>
+                ))}
               </div>
-
-              {/* Composition Analysis */}
-              <div className="bg-[#12141C] p-10 rounded-[3.5rem] border border-[#1F232B] shadow-2xl flex flex-col justify-between">
-                 <div className="space-y-6">
-                    <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                       <PieChart size={16} className="text-orange-500" /> Розподіл Активів
-                    </h3>
-                    <div className="h-[300px] w-full">
-                       <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={[{ name: 'Каса', val: totalPaid }, { name: 'Борг', val: totalDebt }]}>
-                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4B5563', fontSize: 10, fontWeight: 900 }} />
-                             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                             <Bar dataKey="val" radius={[15, 15, 15, 15]} barSize={40}>
-                                <Cell fill="#10b981" />
-                                <Cell fill="#ef4444" />
-                             </Bar>
-                          </BarChart>
-                       </ResponsiveContainer>
-                    </div>
-                 </div>
-                 <div className="bg-[#0A0C10] p-6 rounded-3xl border border-white/5 space-y-4 shadow-inner">
-                    <div className="flex justify-between items-center">
-                       <span className="text-[10px] font-black text-gray-500 uppercase">Ефективність збору</span>
-                       <span className="text-xs font-black text-green-400">
-                         {totalPaid + totalDebt > 0 ? Math.round((totalPaid / (totalPaid + totalDebt)) * 100) : 0}%
-                       </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-[#1F232B] rounded-full overflow-hidden">
-                       <div className="h-full bg-green-500" style={{ width: `${totalPaid + totalDebt > 0 ? (totalPaid / (totalPaid + totalDebt)) * 100 : 0}%` }} />
-                    </div>
-                 </div>
-              </div>
-            </div>
-          ) : (
-            /* Table View */
-            <div className="bg-[#12141C] rounded-[3.5rem] border border-[#1F232B] overflow-hidden shadow-2xl">
-              {isStudent ? (
-                <div className="p-10 space-y-10">
-                  {filteredInvoices.map(inv => (
-                    <div key={inv.id} className="bg-[#0A0C10] rounded-[3rem] border border-[#1F232B] overflow-hidden p-10 space-y-8">
-                       <div className="flex justify-between items-center">
-                          <div>
-                            <p className="text-[10px] font-black text-purple-400 uppercase mb-1">{inv.course}</p>
-                            <h3 className="text-2xl font-black text-white">{inv.id}</h3>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[#0A0C10]">
+                    <tr className="text-[9px] font-black uppercase text-gray-500 tracking-widest border-b border-[#1F232B]">
+                      <th className="px-10 py-6">{t.table.user}</th>
+                      <th className="px-10 py-6">{t.table.course}</th>
+                      <th className="px-10 py-6 text-right">Сума ($)</th>
+                      <th className="px-10 py-6 text-right">{t.table.debt}</th>
+                      <th className="px-10 py-6 text-center">{t.table.status}</th>
+                      <th className="px-10 py-6 text-center">{t.table.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1F232B]">
+                    {filteredInvoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-white/5 transition-all group">
+                        <td className="px-10 py-6 font-black uppercase text-xs text-gray-200">{inv.student}</td>
+                        <td className="px-10 py-6 text-xs font-bold text-gray-400">{inv.course}</td>
+                        <td className="px-10 py-6 text-xs font-black text-right text-white">${inv.total}</td>
+                        <td className={`px-10 py-6 text-xs font-black text-right ${inv.total - inv.paid > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          ${(inv.total - inv.paid).toLocaleString()}
+                        </td>
+                        <td className="px-10 py-6 text-center">
+                           <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                             inv.status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
+                             inv.status === 'partial' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 
+                             'bg-red-500/10 text-red-400 border border-red-500/20'
+                           }`}>
+                             {t.statuses[inv.status]}
+                           </span>
+                        </td>
+                        <td className="px-10 py-6 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                             <button 
+                               onClick={() => handleOpenEdit(inv)}
+                               className="p-2.5 bg-white/5 rounded-xl text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
+                             >
+                               <Edit3 size={16} />
+                             </button>
+                             <button 
+                               onClick={() => { setCurrentInvoiceId(inv.id); setIsPaymentModalOpen(true); }}
+                               className="p-2.5 bg-white/5 rounded-xl text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all"
+                             >
+                               <DollarSign size={16} />
+                             </button>
                           </div>
-                          <div className="text-right">
-                             <p className="text-[9px] font-black text-gray-600 uppercase mb-1">{t.personal.remaining}</p>
-                             <p className="text-2xl font-black text-red-400">${inv.total - inv.paid}</p>
-                          </div>
-                       </div>
-                       <div className="space-y-4">
-                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{t.personal.history}</p>
-                          <div className="grid gap-3">
-                             {inv.payments.length > 0 ? inv.payments.map(p => (
-                               <div key={p.id} className="flex justify-between items-center bg-[#12141C] p-4 rounded-2xl border border-white/5">
-                                  <span className="text-xs font-black text-gray-200">${p.amount} <span className="text-gray-600 font-medium">— {p.note}</span></span>
-                                  <span className="text-[9px] font-bold text-gray-500 uppercase">{p.date}</span>
-                               </div>
-                             )) : (
-                               <p className="text-xs text-gray-600 italic">Оплат ще не було</p>
-                             )}
-                          </div>
-                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-[#0A0C10]">
-                      <tr className="text-[9px] font-black uppercase text-gray-500 tracking-widest border-b border-[#1F232B]">
-                        <th className="px-10 py-6">{t.table.user}</th>
-                        <th className="px-10 py-6">{t.table.course}</th>
-                        <th className="px-10 py-6 text-right">Сума ($)</th>
-                        <th className="px-10 py-6 text-right">{t.table.debt}</th>
-                        <th className="px-10 py-6 text-center">{t.table.status}</th>
-                        <th className="px-10 py-6 text-center">{t.table.actions}</th>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1F232B]">
-                      {filteredInvoices.map(inv => (
-                        <tr key={inv.id} className="hover:bg-white/5 transition-all group">
-                          <td className="px-10 py-6 font-black uppercase text-xs text-gray-200">{inv.student}</td>
-                          <td className="px-10 py-6 text-xs font-bold text-gray-400">{inv.course}</td>
-                          <td className="px-10 py-6 text-xs font-black text-right text-white">${inv.total}</td>
-                          <td className={`px-10 py-6 text-xs font-black text-right ${inv.total - inv.paid > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                            ${(inv.total - inv.paid).toLocaleString()}
-                          </td>
-                          <td className="px-10 py-6 text-center">
-                             <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                               inv.status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
-                               inv.status === 'partial' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 
-                               'bg-red-500/10 text-red-400 border border-red-500/20'
-                             }`}>
-                               {t.statuses[inv.status]}
-                             </span>
-                          </td>
-                          <td className="px-10 py-6 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                               <button 
-                                 onClick={() => handleOpenEdit(inv)}
-                                 className="p-2.5 bg-white/5 rounded-xl text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
-                               >
-                                 <Edit3 size={16} />
-                               </button>
-                               <button 
-                                 onClick={() => { setCurrentInvoiceId(inv.id); setIsPaymentModalOpen(true); }}
-                                 className="p-2.5 bg-white/5 rounded-xl text-gray-500 hover:text-green-400 hover:bg-green-500/10 transition-all"
-                               >
-                                 <DollarSign size={16} />
-                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* MODALS REMAIN THE SAME... */}
-      {/* (Invoice, Edit, Payment Modals as defined in previous versions) */}
-      
       {/* CREATE / EDIT INVOICE MODAL */}
       {(isInvoiceModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
