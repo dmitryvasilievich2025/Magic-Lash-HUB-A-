@@ -1,5 +1,6 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { AuditResult } from '../types';
 
 export const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -41,9 +42,9 @@ export async function decodeAudioData(
 }
 
 /**
- * Аналіз одного або декількох зображень (Gemini 3 Pro)
+ * Аналіз одного або декількох зображень (Gemini 3 Pro) у режимі JSON
  */
-export const analyzeLashWork = async (images: string[], prompt: string) => {
+export const analyzeLashWork = async (images: string[], prompt: string): Promise<AuditResult> => {
   const ai = getAI();
   const parts = images.map(img => ({
     inlineData: { data: img, mimeType: 'image/jpeg' }
@@ -53,9 +54,43 @@ export const analyzeLashWork = async (images: string[], prompt: string) => {
     model: 'gemini-3-pro-preview',
     contents: {
       parts: [...parts, { text: prompt }]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          overallScore: { type: Type.NUMBER, description: "Загальний бал від 1 до 10, може бути десятковим." },
+          scoreBreakdown: {
+            type: Type.OBJECT,
+            properties: {
+              symmetry: { type: Type.NUMBER, description: "Оцінка симетрії від 1 до 10." },
+              direction: { type: Type.NUMBER, description: "Оцінка напрямку від 1 до 10." },
+              cleanliness: { type: Type.NUMBER, description: "Оцінка чистоти склейок від 1 до 10." },
+            },
+            required: ["symmetry", "direction", "cleanliness"]
+          },
+          strengths: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "Масив з 2-3 речень, що описують сильні сторони роботи."
+          },
+          improvements: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "Масив з 2-3 речень, що описують зони для покращення."
+          },
+          advice: { type: Type.STRING, description: "Детальна порада рівня 'Master-Level' для покращення техніки." }
+        },
+        required: ["overallScore", "scoreBreakdown", "strengths", "improvements", "advice"]
+      },
     }
   });
-  return response.text;
+
+  if (!response.text) {
+    throw new Error("AI response is empty.");
+  }
+  return JSON.parse(response.text);
 };
 
 /**

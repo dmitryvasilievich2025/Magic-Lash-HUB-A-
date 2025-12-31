@@ -1,4 +1,3 @@
-// Fix corrupted import statement on line 1
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Sparkles, MessageCircle, Loader2, Zap, ArrowRight, GraduationCap } from 'lucide-react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';

@@ -1,6 +1,4 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-// Додано Shield до списку імпортів
 import { Send, Loader2, Sparkles, MessageCircle, User, Bot, ShoppingBag, ArrowRight, Zap, HelpCircle, GraduationCap, Star, X, Info, Shield } from 'lucide-react';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Course, TabType, Invoice, Language } from '../types';

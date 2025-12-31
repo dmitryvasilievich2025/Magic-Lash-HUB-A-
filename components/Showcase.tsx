@@ -1,28 +1,30 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, Star, ArrowRight, Zap, ShieldCheck, Sparkles, 
   CreditCard, X, CheckCircle2, Shield, Apple, Smartphone,
-  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare, Phone, Target
+  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare, Phone, Target, Play
 } from 'lucide-react';
 import { Course, Invoice, TabType, Language } from '../types';
 
 interface Props {
+  courses: Course[];
   onPurchase: (invoice: Invoice) => void;
   onNavigate: (tab: TabType) => void;
   lang: Language;
+  user?: any;
 }
 
 type CheckoutStep = 'form' | 'processing' | 'success';
 
-const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
-  const [selectedProduct, setSelectedProduct] = useState<Partial<Course> | null>(null);
+const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user }) => {
+  const [selectedProduct, setSelectedProduct] = useState<Course | null>(null);
+  const [detailsProduct, setDetailsProduct] = useState<Course | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('form');
   
   // Дані форми
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [firstName, setFirstName] = useState(user?.displayName?.split(' ')[0] || '');
+  const [lastName, setLastName] = useState(user?.displayName?.split(' ')[1] || '');
+  const [userEmail, setUserEmail] = useState(user?.email || '');
   const [userPhone, setUserPhone] = useState('');
   const [leadSource, setLeadSource] = useState('instagram');
   
@@ -55,7 +57,10 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
       payment: 'Метод оплати',
       payButton: 'ПРИЄДНАТИСЯ ТА ВІДКРИТИ ARI',
       success: 'Ти в команді!',
-      toProgram: 'ДО ПРОГРАМИ'
+      toProgram: 'ДО ПРОГРАМИ',
+      courseDetails: 'Деталі Напрямку',
+      syllabus: 'Програма курсу',
+      startNow: 'Почати Навчання'
     },
     en: {
       badge: 'Choose your direction',
@@ -82,15 +87,12 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
       payment: 'Payment Method',
       payButton: 'JOIN AND OPEN ARI',
       success: 'You are in!',
-      toProgram: 'TO PROGRAM'
+      toProgram: 'TO PROGRAM',
+      courseDetails: 'Program Details',
+      syllabus: 'Syllabus',
+      startNow: 'Start Learning'
     }
   }[lang]), [lang]);
-
-  const products: Partial<Course>[] = [
-    { id: 'c1', title: 'InLei® Lash Filler 25.9', isExtensionCourse: false, price: 550, description: lang === 'uk' ? 'Революційна формула для потовщення вій. Хімія складів та повний протокол процедури.' : 'Revolutionary lash thickening formula. Chemistry and full protocol.', image: 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=800' },
-    { id: 'c2', title: 'Magic Lash Geometry', isExtensionCourse: true, price: 450, description: lang === 'uk' ? 'Нарощування вій: від 2D до 5D. Геометрія пучка, площа зчіпки та мікровідступи.' : 'Eyelash extensions: 2D to 5D. Fan geometry, bonding area, and micro-gaps.', image: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&q=80&w=400' },
-    { id: 'c3', title: 'Lash Adhesive Master', isExtensionCourse: true, price: 300, description: lang === 'uk' ? 'Робота з клеєм в екстремальних умовах: температура, вологість та секрети носки.' : 'Working with adhesive in extreme conditions: temp, humidity, and retention secrets.', image: 'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&q=80&w=400' },
-  ];
 
   useEffect(() => {
     if (checkoutStep === 'processing') {
@@ -117,6 +119,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
       const newInvoice: Invoice = {
         id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
         student: `${firstName} ${lastName}`.trim() || (lang === 'uk' ? 'Новий Спеціаліст' : 'New Specialist'),
+        studentId: user?.uid,
         course: selectedProduct.title || 'Напрямок',
         total: selectedProduct.price || 0,
         paid: selectedProduct.price || 0,
@@ -136,9 +139,9 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
   const closeCheckout = () => {
     setSelectedProduct(null);
     setCheckoutStep('form');
-    setFirstName('');
-    setLastName('');
-    setUserEmail('');
+    setFirstName(user?.displayName?.split(' ')[0] || '');
+    setLastName(user?.displayName?.split(' ')[1] || '');
+    setUserEmail(user?.email || '');
     setUserPhone('');
     setLeadSource('instagram');
     setProgress(0);
@@ -146,7 +149,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0A0C10] p-10 custom-scrollbar animate-in fade-in duration-700">
-      <div className="max-w-6xl mx-auto space-y-16">
+      <div className="max-w-6xl mx-auto space-y-16 pb-20">
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 text-purple-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-purple-500/20">
             <Sparkles size={12} /> {t.badge}
@@ -156,7 +159,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-          {products.map((product) => (
+          {courses.map((product) => (
             <div key={product.id} className="bg-[#12141C] rounded-[3.5rem] overflow-hidden border border-[#1F232B] shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col h-full hover:-translate-y-2 duration-500">
               <div className="h-64 relative overflow-hidden">
                 <img src={product.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-60 group-hover:opacity-100" alt={product.title} />
@@ -170,7 +173,7 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
                 </h3>
                 <p className="text-gray-400 text-sm leading-relaxed line-clamp-2 font-medium flex-1">{product.description}</p>
                 <div className="grid grid-cols-2 gap-3 mt-4">
-                  <button className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
+                  <button onClick={() => setDetailsProduct(product)} className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
                     {t.details}
                   </button>
                   <button 
@@ -185,6 +188,64 @@ const Showcase: React.FC<Props> = ({ onPurchase, onNavigate, lang }) => {
           ))}
         </div>
       </div>
+
+      {/* DETAILS MODAL */}
+      {detailsProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#12141C] w-full max-w-4xl rounded-[3.5rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] animate-in zoom-in-95 duration-300 relative">
+             <button onClick={() => setDetailsProduct(null)} className="absolute top-6 right-6 p-2 bg-black/50 hover:bg-white/10 rounded-full text-white z-20"><X size={24} /></button>
+             
+             <div className="w-full md:w-1/3 relative h-64 md:h-auto">
+                <img src={detailsProduct.image} className="w-full h-full object-cover opacity-80" alt={detailsProduct.title} />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#12141C] to-transparent md:bg-gradient-to-r" />
+             </div>
+             
+             <div className="flex-1 p-10 overflow-y-auto custom-scrollbar text-left space-y-8">
+                <div>
+                   <div className={`inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-lg text-[9px] font-black uppercase tracking-widest border ${detailsProduct.isExtensionCourse ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
+                      <Sparkles size={10} /> {detailsProduct.isExtensionCourse ? 'Extension' : 'Lamination'}
+                   </div>
+                   <h2 className="text-3xl font-black text-white uppercase leading-tight mb-2">{detailsProduct.title}</h2>
+                   <p className="text-gray-400 text-sm font-medium leading-relaxed">{detailsProduct.description}</p>
+                </div>
+
+                <div className="space-y-4">
+                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">{t.syllabus}</h3>
+                   <div className="space-y-2">
+                      {detailsProduct.lessons.length > 0 ? detailsProduct.lessons.map((lesson, idx) => (
+                         <div key={lesson.id} className="p-4 bg-[#0A0C10] border border-[#1F232B] rounded-2xl flex items-center justify-between group hover:border-white/10 transition-colors">
+                            <div className="flex items-center gap-4">
+                               <div className="w-8 h-8 rounded-full bg-[#1F232B] flex items-center justify-center text-[10px] font-black text-gray-400">
+                                  {idx + 1}
+                               </div>
+                               <span className="text-sm font-bold text-gray-200">{lesson.title}</span>
+                            </div>
+                            <div className="text-[10px] font-black text-gray-600 uppercase">{lesson.steps.length} steps</div>
+                         </div>
+                      )) : (
+                         <div className="p-6 bg-[#0A0C10] border border-[#1F232B] rounded-2xl text-center text-gray-500 text-xs uppercase font-bold tracking-wider">
+                            Програма формується
+                         </div>
+                      )}
+                   </div>
+                </div>
+
+                <div className="pt-4 flex items-center justify-between border-t border-[#1F232B]">
+                   <div>
+                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Price</p>
+                      <p className="text-3xl font-black text-white tracking-tight">${detailsProduct.price}</p>
+                   </div>
+                   <button 
+                     onClick={() => { setDetailsProduct(null); setSelectedProduct(detailsProduct); }}
+                     className={`px-8 py-4 ${detailsProduct.isExtensionCourse ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-2`}
+                   >
+                     {t.startNow} <ArrowRight size={16} />
+                   </button>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
 
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl animate-in fade-in duration-500">

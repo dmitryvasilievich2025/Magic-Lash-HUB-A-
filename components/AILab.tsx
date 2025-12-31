@@ -1,8 +1,10 @@
 
-import React, { useState, useRef } from 'react';
-import { Film, Image as ImageIcon, Sparkles, Send, Loader2, Play, Download, Zap, Info, Plus, Columns, Target, Scissors, ChevronRight, BarChart3, Star, ClipboardCheck } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Film, Image as ImageIcon, Sparkles, Send, Loader2, Play, Download, Zap, Info, Plus, Columns, Target, Scissors, ChevronRight, BarChart3, Star, ClipboardCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { generateEducationalVideo, analyzeLashWork } from '../services/gemini';
-import { Language } from '../types';
+import { Language, AuditResult } from '../types';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+
 
 interface Props {
   lang: Language;
@@ -12,8 +14,8 @@ const AILab: React.FC<Props> = ({ lang }) => {
   const [activeTool, setActiveTool] = useState<'video' | 'analysis' | 'work-audit'>('work-audit');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [analysisText, setAnalysisText] = useState<string | null>(null);
+  const [videoResult, setVideoResult] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AuditResult | null>(null);
   
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [afterImage, setAfterImage] = useState<string | null>(null);
@@ -29,6 +31,7 @@ const AILab: React.FC<Props> = ({ lang }) => {
       auditSubtitle: 'Професійний Аудит та Скоринг',
       auditPrompt: `Ти професійний Lash-аудитор світового рівня. Проведи глибокий технічний аналіз роботи.
       ПОРІВНЯЙ фото ДО та ПІСЛЯ.
+      Твоя відповідь ПОВИННА бути у форматі JSON згідно наданої схеми.
       ОБОВ'ЯЗКОВО вистави бали від 1 до 10 за наступними критеріями:
       1. СИМЕТРІЯ (відносно форми обличчя та осей очей).
       2. НАПРЯМОК ВІЙ (плавність переходу, рядність та кути нахилу).
@@ -40,7 +43,11 @@ const AILab: React.FC<Props> = ({ lang }) => {
       magic: 'ARI проводить аудит...',
       generate: 'Запустити Аналіз',
       auditResult: 'Технічний Протокол Аудиту',
-      contextPlaceholder: "Вкажіть деталі: вигин, товщина, ефект (напр. мокрий ефект, лисичка)..."
+      contextPlaceholder: "Вкажіть деталі: вигин, товщина, ефект (напр. мокрий ефект, лисичка)...",
+      scores: "Оцінки",
+      strengths: "Сильні сторони",
+      improvements: "Зони для росту",
+      advice: "Поради від ARI"
     },
     en: {
       video: 'Veo Video',
@@ -49,6 +56,7 @@ const AILab: React.FC<Props> = ({ lang }) => {
       auditSubtitle: 'Professional Audit & Scoring',
       auditPrompt: `You are a world-class professional Lash Auditor. Conduct a deep technical analysis of the work.
       COMPARE the BEFORE and AFTER photos.
+      Your response MUST be in JSON format according to the provided schema.
       MANDATORY: Give scores from 1 to 10 for:
       1. SYMMETRY (relative to face shape and eye axes).
       2. LASH DIRECTION (smoothness of transitions, layering, and tilt angles).
@@ -60,7 +68,11 @@ const AILab: React.FC<Props> = ({ lang }) => {
       magic: 'ARI is auditing...',
       generate: 'Run Analysis',
       auditResult: 'Technical Audit Protocol',
-      contextPlaceholder: "Enter details: curl, thickness, effect (e.g., wet effect, cat eye)..."
+      contextPlaceholder: "Enter details: curl, thickness, effect (e.g., wet effect, cat eye)...",
+      scores: "Scores",
+      strengths: "Strengths",
+      improvements: "Areas for Improvement",
+      advice: "ARI's Advice"
     }
   }[lang];
 
@@ -76,6 +88,11 @@ const AILab: React.FC<Props> = ({ lang }) => {
     }
   };
 
+  const resetState = () => {
+      setVideoResult(null);
+      setAnalysisResult(null);
+  };
+
   const processTool = async () => {
     if (typeof (window as any).aistudio !== 'undefined') {
       const hasKey = await (window as any).aistudio.hasSelectedApiKey();
@@ -83,13 +100,12 @@ const AILab: React.FC<Props> = ({ lang }) => {
     }
 
     setIsGenerating(true);
-    setResult(null);
-    setAnalysisText(null);
+    resetState();
 
     try {
       if (activeTool === 'video') {
         const videoUrl = await generateEducationalVideo(prompt, previewImage?.split(',')[1]);
-        setResult(videoUrl);
+        setVideoResult(videoUrl);
       } else {
         const images = [];
         if (previewImage) images.push(previewImage.split(',')[1]);
@@ -99,7 +115,7 @@ const AILab: React.FC<Props> = ({ lang }) => {
         
         const finalPrompt = activeTool === 'work-audit' ? `${t.auditPrompt}\n\nКонтекст майстра: ${prompt}` : prompt;
         const analysis = await analyzeLashWork(images, finalPrompt);
-        setAnalysisText(analysis || "Error processing analysis.");
+        setAnalysisResult(analysis);
       }
     } catch (error: any) {
       console.error(error);
@@ -108,6 +124,16 @@ const AILab: React.FC<Props> = ({ lang }) => {
       setIsGenerating(false);
     }
   };
+  
+  const chartData = useMemo(() => {
+    if (!analysisResult) return [];
+    const { symmetry, direction, cleanliness } = analysisResult.scoreBreakdown;
+    return [
+      { subject: lang === 'uk' ? 'Симетрія' : 'Symmetry', score: symmetry, fullMark: 10 },
+      { subject: lang === 'uk' ? 'Напрямок' : 'Direction', score: direction, fullMark: 10 },
+      { subject: lang === 'uk' ? 'Чистота' : 'Cleanliness', score: cleanliness, fullMark: 10 },
+    ];
+  }, [analysisResult, lang]);
 
   return (
     <div className="flex-1 flex flex-col bg-[#0A0C10] overflow-hidden animate-in fade-in duration-700">
@@ -118,19 +144,19 @@ const AILab: React.FC<Props> = ({ lang }) => {
         </div>
         <div className="flex bg-[#0A0C10] p-1.5 rounded-[1.5rem] border border-[#1F232B]">
            <button 
-             onClick={() => { setActiveTool('work-audit'); setAnalysisText(null); setResult(null); }}
+             onClick={() => { setActiveTool('work-audit'); resetState(); }}
              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 ${activeTool === 'work-audit' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20' : 'text-gray-500 hover:text-gray-300'}`}
            >
              <Star size={14} /> {t.audit}
            </button>
            <button 
-             onClick={() => { setActiveTool('analysis'); setAnalysisText(null); setResult(null); }}
+             onClick={() => { setActiveTool('analysis'); resetState(); }}
              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 ${activeTool === 'analysis' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'text-gray-500 hover:text-gray-300'}`}
            >
              <ImageIcon size={14} /> {t.vision}
            </button>
            <button 
-             onClick={() => { setActiveTool('video'); setAnalysisText(null); setResult(null); }}
+             onClick={() => { setActiveTool('video'); resetState(); }}
              className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 ${activeTool === 'video' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'text-gray-500 hover:text-gray-300'}`}
            >
              <Film size={14} /> {t.video}
@@ -222,40 +248,55 @@ const AILab: React.FC<Props> = ({ lang }) => {
                  <BarChart3 size={180} className={activeTool === 'work-audit' ? 'text-orange-500' : 'text-purple-500'} />
               </div>
               
-              {result ? (
+              {videoResult ? (
                 <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-700 relative z-10">
                   <video controls autoPlay loop className="w-full rounded-[2.5rem] shadow-2xl border border-white/5">
-                    <source src={result} type="video/mp4" />
+                    <source src={videoResult} type="video/mp4" />
                   </video>
-                  <a href={result} download className="flex items-center gap-3 px-8 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-white hover:bg-white/10 transition-all border border-white/5">
+                  <a href={videoResult} download className="flex items-center gap-3 px-8 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-white hover:bg-white/10 transition-all border border-white/5">
                     <Download size={18} /> Скачати Результат
                   </a>
                 </div>
-              ) : analysisText ? (
-                <div className="w-full h-full text-left space-y-8 overflow-y-auto pr-4 custom-scrollbar animate-in slide-in-from-right-4 relative z-10">
-                  <div className={`flex items-center gap-4 ${activeTool === 'work-audit' ? 'text-orange-400' : 'text-purple-400'}`}>
-                    <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5">
-                       <Zap size={24} />
+              ) : analysisResult ? (
+                <div className="w-full h-full text-left space-y-10 overflow-y-auto pr-4 custom-scrollbar animate-in slide-in-from-right-4 relative z-10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="bg-[#0A0C10] p-8 rounded-[3rem] border border-white/5 flex flex-col items-center justify-center text-center">
+                       <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Загальний Бал</p>
+                       <h3 className="text-7xl font-black text-orange-400 tracking-tighter">{analysisResult.overallScore.toFixed(1)}<span className="text-3xl text-gray-700">/10</span></h3>
                     </div>
-                    <div>
-                      <h4 className="font-black text-lg uppercase tracking-tight">{t.auditResult}</h4>
-                      <p className="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">ARI Professional Vision Intelligence</p>
+                    <div className="bg-[#0A0C10] p-4 rounded-[3rem] border border-white/5">
+                       <ResponsiveContainer width="100%" height={200}>
+                          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
+                            <PolarGrid stroke="#1F232B" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 10, fontWeight: 'bold' }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
+                            <Radar name="Score" dataKey="score" stroke="#F97316" fill="#F97316" fillOpacity={0.6} />
+                            <Tooltip contentStyle={{ backgroundColor: '#12141C', border: '1px solid #1F232B', borderRadius: '1rem' }} />
+                          </RadarChart>
+                       </ResponsiveContainer>
                     </div>
                   </div>
                   
-                  <div className="bg-[#0A0C10] p-10 rounded-[3rem] border border-[#1F232B] text-gray-200 text-sm leading-[2] font-medium whitespace-pre-wrap shadow-inner relative overflow-hidden">
-                    <div className={`absolute top-0 left-0 w-1.5 h-full ${activeTool === 'work-audit' ? 'bg-orange-600' : 'bg-purple-600'}`} />
-                    {analysisText}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 flex items-center gap-2"><CheckCircle2 size={16} /> {t.strengths}</h4>
+                        <div className="space-y-3">
+                           {analysisResult.strengths.map((s, i) => <p key={i} className="text-sm font-medium text-gray-300 bg-[#0A0C10] border border-green-500/10 p-4 rounded-2xl">{s}</p>)}
+                        </div>
+                     </div>
+                     <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 flex items-center gap-2"><AlertTriangle size={16} /> {t.improvements}</h4>
+                        <div className="space-y-3">
+                           {analysisResult.improvements.map((s, i) => <p key={i} className="text-sm font-medium text-gray-300 bg-[#0A0C10] border border-yellow-500/10 p-4 rounded-2xl">{s}</p>)}
+                        </div>
+                     </div>
                   </div>
-                  
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <button className="flex items-center gap-2 text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors ml-4">
-                       Експортувати висновок для студента <ChevronRight size={14} />
-                    </button>
-                    <button className="flex items-center gap-2 text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors ml-4">
-                       Зберегти в портфоліо майстра <Plus size={14} />
-                    </button>
+
+                  <div className="bg-[#0A0C10] p-8 rounded-[3rem] border border-[#1F232B] space-y-4">
+                     <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-400 flex items-center gap-2"><Sparkles size={16} /> {t.advice}</h4>
+                     <p className="text-gray-200 text-sm leading-[2] font-medium whitespace-pre-wrap">{analysisResult.advice}</p>
                   </div>
+
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center gap-6 opacity-20 group-hover:opacity-40 transition-opacity">

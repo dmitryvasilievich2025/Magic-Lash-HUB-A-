@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Wand2, Film, Loader2, Sparkles, RefreshCw, Mic, MicOff, Video, Edit3, Layout, Plus, Link, Image as ImageIcon, MessageSquare, Zap, Upload, FileVideo, Key } from 'lucide-react';
 import { Course, Step, Lesson, Language } from '../types';
@@ -14,10 +13,8 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
   const [activeLessonId, setActiveLessonId] = useState(course.lessons[0]?.id);
   const [activeStepId, setActiveStepId] = useState<number | 'lesson'>(course.lessons[0]?.steps[0]?.id);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [loadingMessageIdx, setLoadingMessageIdx] = useState(0);
   
-  const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadingMessages = lang === 'uk' ? [
@@ -95,7 +92,10 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
     const targetPrompt = activeStepId === 'lesson' ? activeLesson.aiPrompt : activeStep?.aiPrompt;
     const targetRag = activeStepId === 'lesson' ? activeLesson.ragQuery : activeStep?.ragQuery;
     
-    if (!targetPrompt && !targetRag) return;
+    if (!targetPrompt && !targetRag) {
+      alert(lang === 'uk' ? "Будь ласка, заповніть Сценарій або Базу Знань" : "Please fill in Prompt or Knowledge Base");
+      return;
+    }
 
     if (typeof (window as any).aistudio !== 'undefined') {
       const hasKey = await (window as any).aistudio.hasSelectedApiKey();
@@ -106,19 +106,29 @@ const CourseEditor: React.FC<Props> = ({ course, onUpdate, lang }) => {
     
     setIsGeneratingVideo(true);
     try {
-      const combinedPrompt = `Professional educational beauty cinematography. 
-        Topic: ${activeStep?.title || activeLesson.title}.
-        Instruction: ${targetPrompt || ''}. 
-        Technical details: ${targetRag || ''}. 
-        Visual Style: 4K macro lens, cinematic lighting, realistic skin and lash textures, educational focus.`;
+      // 1. Визначаємо контекст (Extension vs Lamination)
+      const courseContext = isExtension 
+        ? "Eyelash Extension procedure, synthetic lashes, isolation tweezers, adhesive dipping, artificial lashes" 
+        : "Lash Lamination lifting procedure, silicone shields, chemical solutions, natural eyelashes, brush application";
+
+      // 2. Формуємо промпт на основі aiPrompt (Дія) та ragQuery (Деталі)
+      const combinedPrompt = `Cinematic 4K macro beauty shot. 
+        Context: ${courseContext}.
+        Specific Action/Scenario: ${targetPrompt || 'Professional beauty procedure detail, close-up'}. 
+        Technical Elements & Tools: ${targetRag || 'Standard professional tools, clean workspace'}. 
+        Visual Style: High-end beauty commercial, ultra-detailed texture, soft studio lighting, shallow depth of field, slow motion movement, hyper-realistic.`;
       
       const videoUrl = await generateEducationalVideo(combinedPrompt);
+      
       if (activeStepId === 'lesson') updateActiveLesson('media', videoUrl);
       else updateActiveStep('media', videoUrl);
+
     } catch (error: any) {
       console.error("Veo Video Generation Error:", error);
-      if (error?.message?.includes('Entity was not found')) {
+      if (error?.message?.includes('Entity was not found') || error?.message?.includes('404')) {
          await (window as any).aistudio.openSelectKey();
+      } else {
+         alert("Video generation failed. Please check your API key.");
       }
     } finally {
       setIsGeneratingVideo(false);

@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { 
   Play, CheckCircle2, Clock, Award, BookOpen, 
   ArrowRight, Zap, GraduationCap, Star, Trophy, 
@@ -10,16 +9,35 @@ import { Course, Language, Invoice } from '../types';
 
 interface Props {
   activeCourse?: Course;
+  courses: Course[];
   invoices: Invoice[];
   lang: Language;
+  onSetActiveCourse: (id: string) => void;
 }
 
-const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => {
+const StudentDashboard: React.FC<Props> = ({ activeCourse, courses, invoices, lang, onSetActiveCourse }) => {
   const isExtension = activeCourse?.isExtensionCourse || false;
   
+  const enrolledCourses = useMemo(() => {
+    // Get unique course titles from invoices where payment was made
+    const myCourseTitles = new Set(invoices.map(i => i.course));
+    return courses.filter(c => myCourseTitles.has(c.title));
+  }, [courses, invoices]);
+
+  // If the currently active course is not in enrolled courses (and we have enrolled courses),
+  // automatically switch to the first enrolled one.
+  useEffect(() => {
+    if (enrolledCourses.length > 0) {
+       const isEnrolledInActive = enrolledCourses.find(c => c.id === activeCourse?.id);
+       if (!isEnrolledInActive) {
+         onSetActiveCourse(enrolledCourses[0].id);
+       }
+    }
+  }, [enrolledCourses, activeCourse, onSetActiveCourse]);
+
   const t = useMemo(() => ({
     uk: {
-      welcome: 'Привіт, Марія!',
+      welcome: 'Привіт!',
       subtitle: 'Твій шлях до майстерності в Magic Lash HUB',
       stats: {
         mastery: 'Рівень Майстерності',
@@ -27,7 +45,10 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => 
         hours: 'Годин практики',
         certificates: 'Сертифікати'
       },
-      activeTitle: 'Твій поточний розвиток',
+      activeTitle: 'Твій поточний фокус',
+      enrolledTitle: 'Мої напрямки',
+      noCourses: 'Ти ще не приєднався до жодного напрямку.',
+      explore: 'Перейти до Вітрини',
       continue: 'Продовжити практику',
       nextStep: 'Наступний крок',
       featured: 'Рекомендовано для твого росту',
@@ -44,7 +65,7 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => 
       }
     },
     en: {
-      welcome: 'Hello, Maria!',
+      welcome: 'Hello!',
       subtitle: 'Your path to mastery in Magic Lash HUB',
       stats: {
         mastery: 'Mastery Level',
@@ -52,7 +73,10 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => 
         hours: 'Practice Hours',
         certificates: 'Certificates'
       },
-      activeTitle: 'Your Active Development',
+      activeTitle: 'Your Current Focus',
+      enrolledTitle: 'My Enrolled Programs',
+      noCourses: 'You are not enrolled in any programs yet.',
+      explore: 'Go to Showcase',
       continue: 'Continue Practice',
       nextStep: 'Next Step',
       featured: 'Featured for Your Growth',
@@ -231,48 +255,95 @@ const StudentDashboard: React.FC<Props> = ({ activeCourse, invoices, lang }) => 
           </div>
         </div>
 
-        {/* Active Program Card */}
-        <div className="space-y-6">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.activeTitle}</h3>
-            <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 flex flex-col md:flex-row gap-10 shadow-xl relative overflow-hidden group cursor-pointer hover:border-purple-500/20 transition-all duration-500 text-left">
-               <div className="absolute top-0 left-0 w-2 h-full bg-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-               <div className="w-full md:w-64 h-48 bg-[#0A0C10] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-inner">
-                  <img 
-                    src={isExtension ? "https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&q=80&w=400" : "https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=400"} 
-                    className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" 
-                    alt="Current Course"
-                  />
-               </div>
-               <div className="flex-1 space-y-6 flex flex-col justify-center">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-purple-400">
-                      <Sparkles size={12} /> {isExtension ? 'Extension Masterclass' : 'Lamination Protocol'}
+        {/* My Enrolled Courses List */}
+        {enrolledCourses.length > 0 && (
+          <div className="space-y-6">
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.enrolledTitle}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {enrolledCourses.map(course => (
+                 <div 
+                    key={course.id} 
+                    onClick={() => onSetActiveCourse(course.id)}
+                    className={`bg-[#12141C] border ${activeCourse?.id === course.id ? (course.isExtensionCourse ? 'border-purple-500' : 'border-yellow-500') : 'border-white/5'} rounded-[2.5rem] p-6 flex items-center gap-6 cursor-pointer hover:bg-white/5 transition-all group`}
+                 >
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-black shrink-0 border border-white/10">
+                       <img src={course.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform" alt="" />
                     </div>
-                    <h4 className="text-3xl font-black text-white uppercase tracking-tight leading-none">{activeCourse?.title || 'Magic Lash Practice'}</h4>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-500 tracking-widest">
-                       <span>Training Progress</span>
-                       <span className="text-purple-400">68%</span>
+                    <div className="flex-1">
+                       <h4 className="text-lg font-black text-white uppercase leading-tight mb-2">{course.title}</h4>
+                       <div className="flex items-center gap-2 text-[9px] font-bold text-gray-500 uppercase">
+                          <CheckCircle2 size={12} className={course.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} /> 
+                          {course.isExtensionCourse ? 'Extension Course' : 'Lamination Course'}
+                       </div>
                     </div>
-                    <div className="w-full h-2 bg-[#0A0C10] rounded-full overflow-hidden border border-white/5">
-                       <div className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full shadow-[0_0_12px_rgba(168,85,247,0.4)] transition-all duration-1000" style={{ width: '68%' }} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-6 pt-2">
-                     <button className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-purple-600/20 transition-all flex items-center gap-3 active:scale-95">
-                        <Play size={14} fill="currentColor" /> {t.continue}
-                     </button>
-                     <div className="text-left">
-                        <p className="text-[9px] font-black text-gray-600 uppercase">{t.nextStep}</p>
-                        <p className="text-[11px] font-bold text-gray-300 uppercase">Chemical Balance Analysis</p>
-                     </div>
-                  </div>
-               </div>
+                    {activeCourse?.id === course.id && (
+                       <div className={`p-3 rounded-full ${course.isExtensionCourse ? 'bg-purple-500 text-white' : 'bg-yellow-500 text-white'}`}>
+                          <Play size={16} fill="currentColor" />
+                       </div>
+                    )}
+                 </div>
+               ))}
             </div>
-        </div>
+          </div>
+        )}
+
+        {/* Active Program Card (Only if enrolled) */}
+        {enrolledCourses.length > 0 ? (
+          <div className="space-y-6">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 px-4">{t.activeTitle}</h3>
+              <div className="bg-[#12141C] border border-white/5 rounded-[3.5rem] p-10 flex flex-col md:flex-row gap-10 shadow-xl relative overflow-hidden group cursor-pointer hover:border-purple-500/20 transition-all duration-500 text-left">
+                 <div className="absolute top-0 left-0 w-2 h-full bg-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                 <div className="w-full md:w-64 h-48 bg-[#0A0C10] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-inner">
+                    <img 
+                      src={activeCourse?.image} 
+                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" 
+                      alt="Current Course"
+                    />
+                 </div>
+                 <div className="flex-1 space-y-6 flex flex-col justify-center">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-purple-400">
+                        <Sparkles size={12} /> {isExtension ? 'Extension Masterclass' : 'Lamination Protocol'}
+                      </div>
+                      <h4 className="text-3xl font-black text-white uppercase tracking-tight leading-none">{activeCourse?.title || 'Magic Lash Practice'}</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-[10px] font-black uppercase text-gray-500 tracking-widest">
+                         <span>Training Progress</span>
+                         <span className="text-purple-400">68%</span>
+                      </div>
+                      <div className="w-full h-2 bg-[#0A0C10] rounded-full overflow-hidden border border-white/5">
+                         <div className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full shadow-[0_0_12px_rgba(168,85,247,0.4)] transition-all duration-1000" style={{ width: '68%' }} />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 pt-2">
+                       <button className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-purple-600/20 transition-all flex items-center gap-3 active:scale-95">
+                          <Play size={14} fill="currentColor" /> {t.continue}
+                       </button>
+                       <div className="text-left">
+                          <p className="text-[9px] font-black text-gray-600 uppercase">{t.nextStep}</p>
+                          <p className="text-[11px] font-bold text-gray-300 uppercase">Chemical Balance Analysis</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+          </div>
+        ) : (
+          <div className="py-20 text-center space-y-6 bg-[#12141C] rounded-[3.5rem] border border-white/5">
+             <div className="w-20 h-20 bg-purple-500/10 rounded-3xl flex items-center justify-center text-purple-500 mx-auto">
+                <BookOpen size={32} />
+             </div>
+             <div className="space-y-2">
+                <h3 className="text-2xl font-black text-white uppercase">{t.noCourses}</h3>
+                <p className="text-gray-500 text-sm">Придбайте курс у Вітрині, щоб розпочати навчання.</p>
+             </div>
+             <button className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                {t.explore}
+             </button>
+          </div>
+        )}
 
         {/* Featured Discovery */}
         <div className="space-y-8">

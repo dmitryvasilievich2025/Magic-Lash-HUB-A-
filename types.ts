@@ -55,3 +55,18 @@ export interface Invoice {
   dueDate: string;
   payments: PaymentRecord[];
 }
+
+// Типи для структурованого аналізу роботи в AI Lab
+export interface ScoreBreakdown {
+  symmetry: number;
+  direction: number;
+  cleanliness: number;
+}
+
+export interface AuditResult {
+  overallScore: number;
+  scoreBreakdown: ScoreBreakdown;
+  strengths: string[];
+  improvements: string[];
+  advice: string;
+}
