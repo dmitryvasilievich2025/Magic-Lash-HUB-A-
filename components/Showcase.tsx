@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, Star, ArrowRight, Zap, ShieldCheck, Sparkles, 
   CreditCard, X, CheckCircle2, Shield, Apple, Smartphone,
-  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare, Phone, Target, Play
+  Mail, User, ChevronDown, Loader2, Trophy, Clock, MessageSquare, Phone, Target, Play, Bot, EyeOff, Instagram, BookOpen
 } from 'lucide-react';
-import { Course, Invoice, TabType, Language } from '../types';
+import { Course, Invoice, TabType, Language, UserRole } from '../types';
 
 interface Props {
   courses: Course[];
@@ -12,11 +12,13 @@ interface Props {
   onNavigate: (tab: TabType) => void;
   lang: Language;
   user?: any;
+  role?: UserRole;
+  onSetActiveCourse?: (id: string) => void;
 }
 
 type CheckoutStep = 'form' | 'processing' | 'success';
 
-const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user }) => {
+const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user, role, onSetActiveCourse }) => {
   const [selectedProduct, setSelectedProduct] = useState<Course | null>(null);
   const [detailsProduct, setDetailsProduct] = useState<Course | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('form');
@@ -26,10 +28,23 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
   const [lastName, setLastName] = useState(user?.displayName?.split(' ')[1] || '');
   const [userEmail, setUserEmail] = useState(user?.email || '');
   const [userPhone, setUserPhone] = useState('');
+  const [userInstagram, setUserInstagram] = useState(''); 
   const [leadSource, setLeadSource] = useState('instagram');
   
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple' | 'google'>('card');
   const [progress, setProgress] = useState(0);
+
+  // Fallback image in case Firebase blocks access or URL is broken
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800';
+    e.currentTarget.onerror = null; // Prevent infinite loop
+  };
+
+  // Filter courses based on role and publish status
+  const visibleCourses = useMemo(() => {
+    const isAdmin = role === 'admin' || role === 'specialist';
+    return courses.filter(c => c.isPublished || isAdmin);
+  }, [courses, role]);
 
   const t = useMemo(() => ({
     uk: {
@@ -41,11 +56,13 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       askButton: 'Запитати ARI',
       details: 'Деталі',
       select: 'Обрати',
+      buy: 'Купити Курс',
       checkoutTitle: 'Реєстрація у HUB',
       checkoutSub: 'Починаємо майбутнє',
       firstName: "Твоє ім'я",
       lastName: 'Прізвище',
       phone: 'Номер телефону',
+      instagram: 'Instagram',
       source: 'Звідки ви про нас дізналися?',
       sourceOptions: {
         instagram: 'Instagram',
@@ -60,7 +77,8 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       toProgram: 'ДО ПРОГРАМИ',
       courseDetails: 'Деталі Напрямку',
       syllabus: 'Програма курсу',
-      startNow: 'Почати Навчання'
+      startNow: 'Почати Навчання',
+      draft: 'ЧЕРНЕТКА'
     },
     en: {
       badge: 'Choose your direction',
@@ -71,11 +89,13 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       askButton: 'Ask ARI',
       details: 'Details',
       select: 'Select',
+      buy: 'Buy Course',
       checkoutTitle: 'Registration in HUB',
       checkoutSub: 'Starting the future',
       firstName: 'First Name',
       lastName: 'Last Name',
       phone: 'Phone Number',
+      instagram: 'Instagram',
       source: 'How did you hear about us?',
       sourceOptions: {
         instagram: 'Instagram',
@@ -90,7 +110,8 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       toProgram: 'TO PROGRAM',
       courseDetails: 'Program Details',
       syllabus: 'Syllabus',
-      startNow: 'Start Learning'
+      startNow: 'Start Learning',
+      draft: 'DRAFT'
     }
   }[lang]), [lang]);
 
@@ -120,6 +141,9 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
         id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
         student: `${firstName} ${lastName}`.trim() || (lang === 'uk' ? 'Новий Спеціаліст' : 'New Specialist'),
         studentId: user?.uid,
+        studentEmail: userEmail,
+        studentPhone: userPhone,
+        studentInstagram: userInstagram,
         course: selectedProduct.title || 'Напрямок',
         total: selectedProduct.price || 0,
         paid: selectedProduct.price || 0,
@@ -143,13 +167,49 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
     setLastName(user?.displayName?.split(' ')[1] || '');
     setUserEmail(user?.email || '');
     setUserPhone('');
+    setUserInstagram('');
     setLeadSource('instagram');
     setProgress(0);
   };
 
+  const handleDetailsClick = (product: Course) => {
+    // If admin clicks details, they might want to preview it as a student would see it, 
+    // OR go to edit. Let's show the modal for preview, and add an "Edit" button inside the modal for admins.
+    setDetailsProduct(product);
+  };
+
+  const handleEditCourse = (e: React.MouseEvent, courseId: string) => {
+    e.stopPropagation();
+    if (onSetActiveCourse) {
+      onSetActiveCourse(courseId);
+      onNavigate('courses-admin');
+    }
+  };
+
+  // Video hover handlers
+  const handleVideoHover = (e: React.MouseEvent<HTMLDivElement>) => {
+    const video = e.currentTarget.querySelector('video');
+    if (video) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          // Video play suppressed (likely due to interaction policies), acceptable in this context
+        });
+      }
+    }
+  };
+
+  const handleVideoLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const video = e.currentTarget.querySelector('video');
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#0A0C10] p-10 custom-scrollbar animate-in fade-in duration-700">
-      <div className="max-w-6xl mx-auto space-y-16 pb-20">
+      <div className="max-w-6xl mx-auto space-y-12 pb-20">
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 text-purple-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-purple-500/20">
             <Sparkles size={12} /> {t.badge}
@@ -158,12 +218,64 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
           <p className="text-gray-400 max-w-2xl mx-auto font-medium">{t.subtitle}</p>
         </div>
 
+        {/* ARI PROMO BANNER */}
+        <div className="bg-gradient-to-r from-[#1F232B] to-[#12141C] border border-[#2D333D] rounded-[2.5rem] p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group hover:border-purple-500/30 transition-all">
+           {/* Background Effects */}
+           <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-purple-600/20 transition-all" />
+           
+           <div className="flex items-center gap-6 relative z-10 text-left">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-purple-900/30 shrink-0">
+                 <Bot size={32} />
+              </div>
+              <div className="space-y-1">
+                 <h3 className="text-xl font-black text-white uppercase tracking-tight">{t.bannerTitle}</h3>
+                 <p className="text-gray-400 text-sm font-medium max-w-md">{t.bannerSub}</p>
+              </div>
+           </div>
+
+           <button 
+              onClick={() => onNavigate('guest-chat')}
+              className="px-8 py-4 bg-white text-black hover:bg-gray-100 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-3 active:scale-95 shrink-0 group/btn"
+           >
+              <MessageSquare size={16} className="text-purple-600 group-hover/btn:scale-110 transition-transform" />
+              {t.askButton}
+           </button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-          {courses.map((product) => (
-            <div key={product.id} className="bg-[#12141C] rounded-[3.5rem] overflow-hidden border border-[#1F232B] shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col h-full hover:-translate-y-2 duration-500">
-              <div className="h-64 relative overflow-hidden">
-                <img src={product.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-60 group-hover:opacity-100" alt={product.title} />
-                <div className={`absolute top-6 right-6 bg-[#12141C]/90 backdrop-blur-md px-5 py-2.5 rounded-2xl font-black text-sm border border-white/10 ${product.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} shadow-xl`}>
+          {visibleCourses.map((product) => (
+            <div key={product.id} className="bg-[#12141C] rounded-[3.5rem] overflow-hidden border border-[#1F232B] shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col h-full hover:-translate-y-2 duration-500 relative">
+              {/* Draft Badge for Admins */}
+              {!product.isPublished && (
+                 <div className="absolute top-4 left-4 z-30 px-3 py-1 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 backdrop-blur-md">
+                   <EyeOff size={10} /> {t.draft}
+                 </div>
+              )}
+              
+              <div 
+                className="h-64 relative overflow-hidden cursor-pointer group/media"
+                onMouseEnter={handleVideoHover}
+                onMouseLeave={handleVideoLeave}
+                onClick={() => handleDetailsClick(product)}
+              >
+                <img 
+                  src={product.image} 
+                  className={`w-full h-full object-cover group-hover/media:scale-110 transition-transform duration-1000 group-hover/media:opacity-100 relative z-0 ${product.isPublished ? 'opacity-60' : 'opacity-30 grayscale'}`} 
+                  alt={product.title} 
+                  onError={handleImageError}
+                />
+                
+                {product.previewVideo && (
+                  <video 
+                    src={product.previewVideo}
+                    muted
+                    loop
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover z-10 opacity-0 group-hover/media:opacity-100 transition-opacity duration-500 pointer-events-none"
+                  />
+                )}
+
+                <div className={`absolute top-6 right-6 z-20 bg-[#12141C]/90 backdrop-blur-md px-5 py-2.5 rounded-2xl font-black text-sm border border-white/10 ${product.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} shadow-xl`}>
                   ${product.price}
                 </div>
               </div>
@@ -173,14 +285,14 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                 </h3>
                 <p className="text-gray-400 text-sm leading-relaxed line-clamp-2 font-medium flex-1">{product.description}</p>
                 <div className="grid grid-cols-2 gap-3 mt-4">
-                  <button onClick={() => setDetailsProduct(product)} className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
+                  <button onClick={() => handleDetailsClick(product)} className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
                     {t.details}
                   </button>
                   <button 
                     onClick={() => setSelectedProduct(product)}
                     className={`py-4 ${product.isExtensionCourse ? 'bg-purple-600 shadow-purple-500/20 hover:bg-purple-700' : 'bg-yellow-600 shadow-yellow-500/20 hover:bg-yellow-700'} text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all flex items-center justify-center gap-2`}
                   >
-                    <ShoppingBag size={14} /> {t.select}
+                    <CreditCard size={14} /> {t.buy}
                   </button>
                 </div>
               </div>
@@ -192,55 +304,105 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       {/* DETAILS MODAL */}
       {detailsProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-[#12141C] w-full max-w-4xl rounded-[3.5rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] animate-in zoom-in-95 duration-300 relative">
+          <div className="bg-[#12141C] w-full max-w-5xl rounded-[3.5rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] animate-in zoom-in-95 duration-300 relative">
              <button onClick={() => setDetailsProduct(null)} className="absolute top-6 right-6 p-2 bg-black/50 hover:bg-white/10 rounded-full text-white z-20"><X size={24} /></button>
              
-             <div className="w-full md:w-1/3 relative h-64 md:h-auto">
-                <img src={detailsProduct.image} className="w-full h-full object-cover opacity-80" alt={detailsProduct.title} />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#12141C] to-transparent md:bg-gradient-to-r" />
+             {/* Main Image Section */}
+             <div className="w-full md:w-2/5 relative h-64 md:h-auto bg-black">
+                <img 
+                  src={detailsProduct.image} 
+                  className="w-full h-full object-cover opacity-80" 
+                  alt={detailsProduct.title} 
+                  onError={handleImageError} 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#12141C] via-transparent to-transparent md:bg-gradient-to-r" />
+                
+                <div className="absolute bottom-8 left-8 right-8 text-left">
+                   <div className={`inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-[#12141C]/80 backdrop-blur-sm ${detailsProduct.isExtensionCourse ? 'text-purple-400 border-purple-500/20' : 'text-yellow-400 border-yellow-500/20'}`}>
+                      <Sparkles size={10} /> 
+                      {detailsProduct.isExtensionCourse 
+                        ? (lang === 'uk' ? 'Нарощування (Extension)' : 'Extension') 
+                        : (lang === 'uk' ? 'Ламінування (Lamination)' : 'Lamination')}
+                   </div>
+                   <h2 className="text-3xl font-black text-white uppercase leading-tight mb-2 drop-shadow-lg">{detailsProduct.title}</h2>
+                   <p className="text-gray-300 text-xs font-medium leading-relaxed drop-shadow-md">{detailsProduct.description}</p>
+                </div>
              </div>
              
-             <div className="flex-1 p-10 overflow-y-auto custom-scrollbar text-left space-y-8">
-                <div>
-                   <div className={`inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-lg text-[9px] font-black uppercase tracking-widest border ${detailsProduct.isExtensionCourse ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
-                      <Sparkles size={10} /> {detailsProduct.isExtensionCourse ? 'Extension' : 'Lamination'}
-                   </div>
-                   <h2 className="text-3xl font-black text-white uppercase leading-tight mb-2">{detailsProduct.title}</h2>
-                   <p className="text-gray-400 text-sm font-medium leading-relaxed">{detailsProduct.description}</p>
-                </div>
-
-                <div className="space-y-4">
-                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">{t.syllabus}</h3>
-                   <div className="space-y-2">
-                      {detailsProduct.lessons.length > 0 ? detailsProduct.lessons.map((lesson, idx) => (
-                         <div key={lesson.id} className="p-4 bg-[#0A0C10] border border-[#1F232B] rounded-2xl flex items-center justify-between group hover:border-white/10 transition-colors">
-                            <div className="flex items-center gap-4">
-                               <div className="w-8 h-8 rounded-full bg-[#1F232B] flex items-center justify-center text-[10px] font-black text-gray-400">
-                                  {idx + 1}
-                               </div>
-                               <span className="text-sm font-bold text-gray-200">{lesson.title}</span>
-                            </div>
-                            <div className="text-[10px] font-black text-gray-600 uppercase">{lesson.steps.length} steps</div>
-                         </div>
-                      )) : (
-                         <div className="p-6 bg-[#0A0C10] border border-[#1F232B] rounded-2xl text-center text-gray-500 text-xs uppercase font-bold tracking-wider">
-                            Програма формується
-                         </div>
-                      )}
-                   </div>
-                </div>
-
-                <div className="pt-4 flex items-center justify-between border-t border-[#1F232B]">
+             {/* Content Section */}
+             <div className="flex-1 p-8 md:p-10 overflow-y-auto custom-scrollbar text-left flex flex-col">
+                <div className="flex-1 space-y-8">
                    <div>
-                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Price</p>
-                      <p className="text-3xl font-black text-white tracking-tight">${detailsProduct.price}</p>
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center gap-2">
+                         <BookOpen size={14} /> {t.syllabus}
+                      </h3>
+                      
+                      {/* Structure Display */}
+                      <div className="space-y-6">
+                         {detailsProduct.sections?.map((section, idx) => (
+                            <div key={section.id} className="animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: `${idx * 100}ms` }}>
+                               <div className="flex items-center gap-3 mb-3">
+                                  <div className="w-6 h-6 rounded-full bg-[#1F232B] flex items-center justify-center text-[10px] font-black text-gray-400 border border-white/5">
+                                     {idx + 1}
+                                  </div>
+                                  <h4 className="text-xs font-black text-gray-200 uppercase tracking-wider">{section.title}</h4>
+                               </div>
+                               <div className="space-y-3 pl-3 ml-3 border-l border-[#1F232B]">
+                                  {section.lessons.map(lesson => (
+                                     <div key={lesson.id} className="bg-[#0A0C10] p-3 rounded-xl border border-white/5 flex gap-4 group hover:border-white/10 transition-colors">
+                                        {lesson.thumbnail ? (
+                                          <img src={lesson.thumbnail} className="w-16 h-16 rounded-lg object-cover border border-white/10 shrink-0" alt="" onError={handleImageError} />
+                                        ) : (
+                                          <div className="w-16 h-16 rounded-lg bg-[#1F232B] flex items-center justify-center shrink-0">
+                                             <Play size={16} className="text-gray-600" />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0 py-1">
+                                           <p className="text-[10px] font-bold text-white uppercase mb-1 truncate">{lesson.title}</p>
+                                           <p className="text-[9px] text-gray-500 line-clamp-2 leading-relaxed">
+                                              {lesson.description || (lang === 'uk' ? 'Детальний розбір теми, теорія та практика.' : 'Detailed breakdown of the topic, theory and practice.')}
+                                           </p>
+                                        </div>
+                                     </div>
+                                  ))}
+                                  {section.lessons.length === 0 && <p className="text-[9px] text-gray-600 italic pl-2">Матеріали готуються...</p>}
+                               </div>
+                            </div>
+                         ))}
+                         {(!detailsProduct.sections || detailsProduct.sections.length === 0) && (
+                            <div className="p-8 text-center border border-dashed border-[#1F232B] rounded-3xl">
+                               <p className="text-gray-500 text-xs font-medium">Програма курсу формується.</p>
+                            </div>
+                         )}
+                      </div>
                    </div>
-                   <button 
-                     onClick={() => { setDetailsProduct(null); setSelectedProduct(detailsProduct); }}
-                     className={`px-8 py-4 ${detailsProduct.isExtensionCourse ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-2`}
-                   >
-                     {t.startNow} <ArrowRight size={16} />
-                   </button>
+                </div>
+
+                <div className="pt-6 mt-6 flex items-center justify-between border-t border-[#1F232B] shrink-0">
+                   <div>
+                      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Інвестиція</p>
+                      <div className="flex items-baseline gap-1">
+                         <p className="text-3xl font-black text-white tracking-tight">${detailsProduct.price}</p>
+                         <span className="text-[10px] font-bold text-gray-500">USD</span>
+                      </div>
+                   </div>
+                   
+                   <div className="flex gap-3">
+                      {(role === 'admin' || role === 'specialist') && (
+                         <button 
+                           onClick={(e) => handleEditCourse(e, detailsProduct.id)}
+                           className="px-6 py-4 bg-[#1F232B] text-gray-300 hover:text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
+                         >
+                            Редагувати
+                         </button>
+                      )}
+                      <button 
+                        onClick={() => { setDetailsProduct(null); setSelectedProduct(detailsProduct); }}
+                        className={`px-8 py-4 ${detailsProduct.isExtensionCourse ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-2`}
+                      >
+                        {t.startNow} <ArrowRight size={16} />
+                      </button>
+                   </div>
                 </div>
              </div>
           </div>
@@ -254,7 +416,7 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
               <div className="mb-8">
                  <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-4">{lang === 'uk' ? 'Твій вибір' : 'Your choice'}</h4>
                  <div className="relative rounded-3xl overflow-hidden aspect-square mb-6 border border-[#1F232B]">
-                    <img src={selectedProduct.image} className="w-full h-full object-cover opacity-60" alt="" />
+                    <img src={selectedProduct.image} className="w-full h-full object-cover opacity-60" alt="" onError={handleImageError} />
                  </div>
                  <h3 className={`text-lg font-black mb-2 ${selectedProduct.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'}`}>{selectedProduct.title}</h3>
               </div>
@@ -305,20 +467,29 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.source}</label>
-                      <div className="relative">
-                        <Target size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                        <select 
-                          className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-12 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none appearance-none" 
-                          value={leadSource} 
-                          onChange={e => setLeadSource(e.target.value)}
-                        >
-                          {Object.entries(t.sourceOptions).map(([k, v]) => (
-                            <option key={k} value={k} className="bg-[#12141C]">{v}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.instagram}</label>
+                        <div className="relative">
+                          <Instagram size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                          <input className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="@username" value={userInstagram} onChange={e => setUserInstagram(e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.source}</label>
+                        <div className="relative">
+                          <Target size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
+                          <select 
+                            className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-12 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none appearance-none" 
+                            value={leadSource} 
+                            onChange={e => setLeadSource(e.target.value)}
+                          >
+                            {Object.entries(t.sourceOptions).map(([k, v]) => (
+                              <option key={k} value={k} className="bg-[#12141C]">{v}</option>
+                            ))}
+                          </select>
+                          <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
+                        </div>
                       </div>
                     </div>
 

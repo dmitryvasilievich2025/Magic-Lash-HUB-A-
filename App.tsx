@@ -6,7 +6,7 @@ import {
   AlertTriangle, Copy, Check, Info, Globe, Link as LinkIcon, ArrowRight, ExternalLink, RefreshCw, AlertCircle, Eye, Settings, ExternalLink as NewTab, Mail, Lock, CheckSquare, Square
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { TabType, Course, UserRole, Invoice, Language } from './types';
+import { TabType, Course, UserRole, Invoice, Language, Section } from './types';
 import CourseEditor from './components/CourseEditor';
 import FinanceHub from './components/FinanceHub';
 import AILab from './components/AILab';
@@ -15,7 +15,7 @@ import Showcase from './components/Showcase';
 import StudentDashboard from './components/StudentDashboard';
 import GuestChat from './components/GuestChat';
 import SpecialistDashboard from './components/SpecialistDashboard';
-import { auth, db, loginWithGoogle, logout, saveInvoiceToDB, syncUserProfile, registerWithEmail, loginWithEmail } from './services/firebase';
+import { auth, db, loginWithGoogle, logout, saveInvoiceToDB, syncUserProfile, registerWithEmail, loginWithEmail, subscribeToCourses, saveCourseToDB } from './services/firebase';
 
 const App: React.FC = () => {
   // Safe language initialization
@@ -145,11 +145,108 @@ const App: React.FC = () => {
     return translations[language] || translations['uk'];
   }, [language]);
 
-  const [courses] = useState<Course[]>([
-    { id: 'c1', title: 'InLei® Lash Filler 25.9', isExtensionCourse: false, price: 550, description: 'Революційна формула для потовщення вій. Хімія складів та повний протокол процедури.', image: 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=800', lessons: [] },
-    { id: 'c2', title: 'Magic Lash Geometry', isExtensionCourse: true, price: 450, description: 'Нарощування вій: від 2D до 5D. Геометрія пучка, площа зчіпки та мікровідступи.', image: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?auto=format&fit=crop&q=80&w=400', lessons: [] },
-    { id: 'c3', title: 'Lash Adhesive Master', isExtensionCourse: true, price: 300, description: 'Робота з клеєм в екстремальних умовах: температура, вологість та секрети носки.', image: 'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&q=80&w=400', lessons: [] },
-  ]);
+  // Initial State (Static fallback with new Section structure)
+  const defaultCourses: Course[] = [
+    { 
+      id: 'c1', 
+      title: 'InLei® Lash Filler 25.9', 
+      isExtensionCourse: false, 
+      price: 550, 
+      description: 'Революційна формула для потовщення вій. Хімія складів та повний протокол процедури.', 
+      image: 'https://images.unsplash.com/photo-1587779782508-c07aef00d724?auto=format&fit=crop&q=80&w=800', 
+      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-getting-her-eyebrows-done-43765-large.mp4',
+      sections: [], // Will be empty initially or populated
+      isPublished: true
+    },
+    { 
+      id: 'c2', 
+      title: 'Anime Kirpik Maratonu (5 efekt)', 
+      isExtensionCourse: true, 
+      price: 30, 
+      description: 'Anime kirpikler şu anda en büyük trend. Ve müşteriler bunu çoktan soruyor. 👀✨ Bu maratonda 5 farklı anime efekti öğreneceksiniz.', 
+      image: 'https://images.unsplash.com/photo-1596704017254-9b1b1848fb11?auto=format&fit=crop&q=80&w=800',
+      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-putting-on-false-lashes-in-the-mirror-43759-large.mp4',
+      sections: [],
+      isPublished: true
+    },
+    { 
+      id: 'c3', 
+      title: 'Lash Adhesive Master', 
+      isExtensionCourse: true, 
+      price: 300, 
+      description: 'Робота з клеєм в екстремальних умовах: температура, вологість та секрети носки.', 
+      image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800',
+      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-326-large.mp4',
+      sections: [],
+      isPublished: true
+    },
+    { 
+      id: 'c4', 
+      title: 'Lash Lifting Basics', 
+      isExtensionCourse: false, 
+      price: 250, 
+      description: 'Learn the fundamentals of lash lifting techniques for natural lash enhancement.', 
+      image: 'https://images.unsplash.com/photo-1509631179647-b849171184a8?auto=format&fit=crop&q=80&w=800',
+      previewVideo: '',
+      sections: [],
+      isPublished: true
+    },
+  ];
+
+  const [courses, setCourses] = useState<Course[]>(defaultCourses);
+
+  // Sync Courses from DB
+  useEffect(() => {
+    const unsubscribe = subscribeToCourses((fetchedCourses) => {
+      if (fetchedCourses.length > 0) {
+        // Normalize fetched courses: 
+        // 1. ensure isPublished is set (default true for legacy)
+        // 2. ensure sections existence (migrate lessons to sections if sections are missing)
+        const normalized = fetchedCourses.map(c => {
+          let updatedSections = c.sections || [];
+          
+          // Migration logic: If no sections but lessons exist, wrap them in a default section
+          if (updatedSections.length === 0 && c.lessons && c.lessons.length > 0) {
+            updatedSections = [{
+              id: 'sec-default',
+              title: 'Основна Програма',
+              description: 'Базовий модуль курсу',
+              lessons: c.lessons
+            }];
+          }
+
+          return {
+            ...c,
+            isPublished: c.isPublished ?? true, // Default to true if field is missing
+            sections: updatedSections,
+            lessons: [] // Clear legacy field to avoid confusion in future
+          };
+        });
+
+        // Sort by ID to keep order
+        const sorted = [...normalized].sort((a, b) => a.id.localeCompare(b.id));
+        setCourses(sorted);
+      } else {
+        // If DB is empty, we keep defaultCourses
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleCourseUpdate = (updatedCourse: Course) => {
+    // Optimistic update for UI responsiveness
+    setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+  };
+  
+  const handleCourseSave = async (courseToSave: Course) => {
+    try {
+      await saveCourseToDB(courseToSave);
+      alert(language === 'uk' ? 'Курс успішно збережено!' : 'Course saved successfully!');
+    } catch (e) {
+      console.error("Failed to save course", e);
+      alert(language === 'uk' ? 'Помилка збереження.' : 'Error saving course.');
+    }
+  };
 
   // Sidebar Items Definition
   const sidebarItems = useMemo(() => {
@@ -526,7 +623,7 @@ const App: React.FC = () => {
         )}
 
         <div className="flex-1 min-h-0 flex flex-col relative">
-          {activeTab === 'showcase' && <Showcase lang={language} user={user} onPurchase={saveInvoiceToDB} onNavigate={setActiveTab} courses={courses} />}
+          {activeTab === 'showcase' && <Showcase lang={language} user={user} role={role} onPurchase={saveInvoiceToDB} onNavigate={setActiveTab} courses={courses} onSetActiveCourse={setActiveCourseId} />}
           {activeTab === 'specialist-dashboard' && (role === 'admin' || role === 'specialist') && (
             <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} onAddInvoice={saveInvoiceToDB} />
           )}
@@ -540,7 +637,7 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'courses-admin' && (role === 'admin' || role === 'specialist') && (
-            <CourseEditor lang={language} course={activeCourse} onUpdate={() => {}} />
+            <CourseEditor key={activeCourse.id} lang={language} course={activeCourse} onUpdate={handleCourseUpdate} onSave={handleCourseSave} />
           )}
           {activeTab === 'finance' && role !== 'guest' && (
             <FinanceHub lang={language} invoices={invoices} setInvoices={() => {}} userRole={role} studentName={user?.displayName || 'Студент'} />

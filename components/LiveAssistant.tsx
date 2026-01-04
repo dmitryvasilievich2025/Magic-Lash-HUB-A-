@@ -1,20 +1,48 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Sparkles, MessageCircle, Loader2, Zap, ArrowRight, GraduationCap } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Mic, MicOff, MessageCircle, Loader2, Zap, ArrowRight, GraduationCap, X, Video, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, RefreshCw, Lock, PlayCircle, Sparkles, List, Film, HelpCircle } from 'lucide-react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { encodeBase64, decodeBase64, decodeAudioData } from '../services/gemini';
-import { Course, Language } from '../types';
+import { Course, Language, Step } from '../types';
 
 interface Props {
   activeCourse?: Course;
   studentName?: string;
   lang: Language;
+  onClose?: () => void;
 }
 
-const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марія', lang }) => {
+const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марія', lang, onClose }) => {
   const [isActive, setIsActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<{role: string, text: string}[]>([]);
-  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const [showStepList, setShowStepList] = useState(false);
+  
+  // Navigation State
+  // Flattened list of steps for easy navigation with strict numbering
+  const flatSteps = useMemo(() => {
+    if (!activeCourse?.sections) return [];
+    let globalCounter = 1;
+    return activeCourse.sections.flatMap((section, secIdx) => 
+      section.lessons.flatMap((lesson, lesIdx) => 
+        lesson.steps.map((step, stepIdx) => ({
+          ...step,
+          globalId: globalCounter++, // Strict sequential ID 1, 2, 3...
+          sectionTitle: section.title,
+          lessonTitle: lesson.title,
+          isLast: false,
+          contextLabel: `Модуль ${secIdx + 1} • Урок ${lesIdx + 1}`
+        }))
+      )
+    ).map((step, idx, arr) => ({ ...step, isLast: idx === arr.length - 1 }));
+  }, [activeCourse]);
+
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const currentStep = flatSteps[currentStepIndex];
+
+  // Quiz State
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState(0);
   
   const audioContextInRef = useRef<AudioContext | null>(null);
   const audioContextOutRef = useRef<AudioContext | null>(null);
@@ -22,23 +50,36 @@ const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марі�
   const streamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
 
-  const activeLesson = activeCourse?.lessons[0];
-  const currentStep = activeLesson?.steps[currentStepIdx];
   const isExtension = activeCourse?.isExtensionCourse || false;
   const brandAccent = isExtension ? 'text-purple-400' : 'text-yellow-500';
+  const brandBg = isExtension ? 'bg-purple-600' : 'bg-yellow-600';
+  const brandBorder = isExtension ? 'border-purple-500' : 'border-yellow-500';
+
+  useEffect(() => {
+    // Reset Quiz state when step changes
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(0);
+  }, [currentStepIndex]);
 
   const stopSession = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
-    if (audioContextInRef.current) audioContextInRef.current.close();
-    if (audioContextOutRef.current) audioContextOutRef.current.close();
+    if (audioContextInRef.current && audioContextInRef.current.state !== 'closed') {
+      audioContextInRef.current.close();
+    }
+    if (audioContextOutRef.current && audioContextOutRef.current.state !== 'closed') {
+      audioContextOutRef.current.close();
+    }
     setIsActive(false);
     setIsConnecting(false);
   };
 
   const startSession = async () => {
+    if (!currentStep) return;
     setIsConnecting(true);
+    setTranscript([]); 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
@@ -48,48 +89,49 @@ const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марі�
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const stepContext = currentStep 
-        ? `Ти зараз на етапі: "${currentStep.title}". 
-           Тип етапу: ${currentStep.type}. 
-           ${currentStep.type === 'quiz' ? `ЗАПИТАННЯ ТЕСТУ: ${currentStep.question}. ПРАВИЛЬНА ВІДПОВІДЬ: ${currentStep.correctAnswer}.` : ''}
-           ІНСТРУКЦІЯ ДЛЯ ТЕБЕ: ${currentStep.aiPrompt || 'Поясни цей крок професійно.'}`
-        : '';
-
-      const courseTitle = activeCourse?.title || '';
-      let specializedAdvice = '';
+      // Формування суворого контексту для ШІ
+      const hasVideo = !!currentStep?.media;
       
-      // Налаштування спеціалізованих порад на основі назви курсу
-      if (courseTitle.includes('Magic Lash Geometry')) {
-        specializedAdvice = `
-          СПЕЦІАЛІЗАЦІЯ (Geometry): Акцентуй увагу на "геометрії пучка" (fan geometry). 
-          Пояснюй, як "площа зчіпки" (bonding area) впливає на довговічність. 
-          Наголошуй на важливості правильних "мікровідступів" (micro-gaps) для здоров'я натуральних вій.`;
-      } else if (courseTitle.includes('Lash Adhesive Master')) {
-        specializedAdvice = `
-          СПЕЦІАЛІЗАЦІЯ (Adhesive): Твоя головна тема — "температурний режим клею" (adhesive temperature). 
-          Аналізуй вологість та швидкість полімеризації. 
-          Пояснюй, як досягти максимальної "ретенції" (retention) через правильну підготовку вій.`;
-      }
+      const stepTypeDescription = currentStep.type === 'quiz' 
+        ? "ЦЕ ЕТАП ТЕСТУВАННЯ (КВІЗ). Твоя задача: не давати прямих відповідей, а допомагати студенту згадати матеріал з попередніх кроків."
+        : "ЦЕ ЕТАП НАВЧАННЯ (ПРЕЗЕНТАЦІЯ). Використовуй опис відео як основу своєї розповіді.";
 
-      const systemInstruction = `Ти — ARI, персональний коуч в Magic Lash HUB. Студент: ${studentName}. 
-        Твоя мета: провести розвиток за напрямком "${courseTitle}". 
-        ${isExtension ? 'Ти експерт з нарощування (Magic Lash).' : 'Ти експерт з ламінування (InLei®).'}
-        
-        ${specializedAdvice}
+      const videoContext = hasVideo 
+        ? `ВІДЕО/МЕДІА МАТЕРІАЛ: На екрані студента відео: ${currentStep.media}.` 
+        : 'На екрані немає відео, тільки текст.';
 
-        ЗАРАЗ МИ ПРАЦЮЄМО НАД: ${activeLesson?.title || 'Вступним блоком'}.
-        ${stepContext}
+      const contentSource = currentStep.description 
+        ? `ОСНОВНИЙ МАТЕРІАЛ ДЛЯ ПРЕЗЕНТАЦІЇ (ВИКОРИСТОВУЙ ЦЕ): "${currentStep.description}"`
+        : `МАТЕРІАЛ: Опис відсутній. Поясни тему "${currentStep.title}" базуючись на своїх знаннях про ${isExtension ? 'нарощування вій' : 'ламінування вій'}.`;
+
+      const aiScenario = currentStep.interactionPrompt || currentStep.aiPrompt || 'Поясни цей крок професійно та лаконічно.';
+
+      const systemInstruction = `
+        РОЛЬ: Ти — ARI, суворий але дружній ментор Magic Lash HUB.
+        СТУДЕНТ: ${studentName}.
+        КУРС: "${activeCourse?.title || ''}".
         
-        ПРАВИЛА ТЕРМІНОЛОГІЇ:
-        - НЕ використовуй слова: курси, навчання, академія, уроки.
-        - ВИКОРИСТОВУЙ: напрямок, програма, блок, розвиток, практика, HUB.
+        СТРОГА НАВІГАЦІЯ:
+        Ми зараз знаходимось на етапі №${currentStep.globalId} з ${flatSteps.length}.
+        Назва етапу: "${currentStep.title}".
+        Тип етапу: ${stepTypeDescription}
         
-        ПРАВИЛА ПОВЕДІНКИ:
-        1. Вітай спеціаліста на початку сесії.
-        2. Пояснюй матеріал професійно, використовуючи глибокі технічні знання.
-        3. Якщо це тест — задай питання та дочекайся відповіді. Якщо відповідь невірна — м'яко підкажи.
-        4. Після завершення етапу скажи "Чудово! Рухаємося до наступного блоку?"
-        5. Спілкуйся українською мовою.`;
+        ПРАВИЛА ПОВЕДІНКИ (НЕ ПОРУШУВАТИ):
+        1. Ти бачиш ТІЛЬКИ поточний етап №${currentStep.globalId}. Не говори про майбутні етапи, не забігай наперед.
+        2. Якщо це етап навчання: твоя мета — презентувати матеріал, використовуючи наданий опис.
+        3. Якщо це квіз: твоя мета — мотивувати студента пройти тест.
+        4. Не перескакуй теми. Закінчи поточну думку, перш ніж чекати питання.
+        
+        КОНТЕКСТ ПОТОЧНОГО ЕТАПУ:
+        ${contentSource}
+        
+        ${videoContext}
+        
+        ДОДАТКОВІ ІНСТРУКЦІЇ АВТОРА КУРСУ:
+        ${aiScenario}
+        
+        Спілкуйся українською мовою.
+      `;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -130,7 +172,13 @@ const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марі�
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
               const text = message.serverContent.outputTranscription.text;
-              setTranscript(prev => [...prev.slice(-3), {role: 'ARI', text}]);
+              setTranscript(prev => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === 'ARI') {
+                  return [...prev.slice(0, -1), { ...lastMsg, text: lastMsg.text + text }];
+                }
+                return [...prev, { role: 'ARI', text }];
+              });
             }
 
             const audioBase64 = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -151,10 +199,7 @@ const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марі�
             }
           },
           onclose: () => stopSession(),
-          onerror: (err) => {
-            console.error("Live API Error:", err);
-            stopSession();
-          }
+          onerror: (err) => stopSession()
         }
       });
 
@@ -163,151 +208,366 @@ const LiveAssistant: React.FC<Props> = ({ activeCourse, studentName = 'Марі�
     } catch (err) {
       console.error("Failed to start session:", err);
       setIsConnecting(false);
-      alert(lang === 'uk' ? "Помилка підключення до ARI." : "Error connecting to ARI.");
     }
   };
 
-  const nextStep = () => {
-    if (activeLesson && currentStepIdx < activeLesson.steps.length - 1) {
-      setCurrentStepIdx(prev => prev + 1);
+  const handleNextStep = () => {
+    if (currentStepIndex < flatSteps.length - 1) {
+      setCurrentStepIndex(prev => prev + 1);
       if (isActive) {
         stopSession();
-        setTimeout(startSession, 500);
+        // Automatically restart session for next step after short delay to reset context
+        setTimeout(() => startSession(), 800);
+      }
+    }
+  };
+  
+  const handlePrevStep = () => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex(prev => prev - 1);
+      if (isActive) {
+        stopSession();
+        setTimeout(() => startSession(), 800);
       }
     }
   };
 
+  const handleJumpToStep = (index: number) => {
+    setCurrentStepIndex(index);
+    setShowStepList(false);
+    if (isActive) {
+      stopSession();
+      setTimeout(() => startSession(), 800);
+    }
+  }
+
+  const handleQuizSubmit = () => {
+    if (!currentStep?.quizQuestions) return;
+    let correct = 0;
+    currentStep.quizQuestions.forEach(q => {
+      if (quizAnswers[q.id] === q.correctOptionIndex) correct++;
+    });
+    const score = (correct / currentStep.quizQuestions.length) * 100;
+    setQuizScore(score);
+    setQuizSubmitted(true);
+  };
+
+  const canProceed = useMemo(() => {
+    if (currentStep?.type !== 'quiz') return true;
+    return quizSubmitted && quizScore >= 90;
+  }, [currentStep, quizSubmitted, quizScore]);
+
+  // Handle close
+  const handleClose = () => {
+    if (isActive) stopSession();
+    if (onClose) onClose();
+  };
+
+  if (!currentStep) return null;
+
+  const progressPercent = ((currentStepIndex + 1) / flatSteps.length) * 100;
+
   return (
-    <div className="flex-1 flex flex-col bg-[#0A0C10] overflow-hidden animate-in fade-in duration-700">
+    <div className="flex-1 flex flex-col bg-[#0A0C10] overflow-hidden animate-in fade-in duration-700 h-full w-full">
       
-      <div className="h-24 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-10 relative z-10 shrink-0">
-        <div className="flex items-center gap-6">
-          <div className={`p-4 rounded-2xl ${isExtension ? 'bg-purple-500/10' : 'bg-yellow-500/10'} border border-white/5`}>
-            <GraduationCap className={brandAccent} size={28} />
-          </div>
-          <div className="text-left">
-            <h3 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-1">{lang === 'uk' ? 'Сесія з ARI Коучем' : 'ARI Coach Session'}</h3>
-            <p className="text-lg font-black text-gray-100">{activeCourse?.title}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="bg-[#0A0C10] px-6 py-3 rounded-2xl border border-[#1F232B] text-left">
-            <p className="text-[8px] font-black text-gray-600 uppercase mb-1">{lang === 'uk' ? `Блок ${currentStepIdx + 1} з ${activeLesson?.steps.length}` : `Block ${currentStepIdx + 1} of ${activeLesson?.steps.length}`}</p>
-            <p className="text-[11px] font-black text-purple-400 uppercase truncate max-w-[200px]">{currentStep?.title}</p>
-          </div>
+      {/* HEADER */}
+      <div className="h-20 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-6 md:px-8 relative z-30 shrink-0 shadow-lg">
+        <div className="flex items-center gap-6 flex-1 min-w-0">
           <button 
-            onClick={nextStep}
-            disabled={currentStepIdx >= (activeLesson?.steps.length || 0) - 1}
-            className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-gray-400 transition-all disabled:opacity-20"
+            onClick={() => setShowStepList(!showStepList)}
+            className={`p-3 rounded-2xl border transition-all flex items-center gap-3 ${showStepList ? 'bg-[#1F232B] border-gray-500 text-white' : 'bg-[#0A0C10] border-[#1F232B] text-gray-400 hover:text-white'}`}
           >
-            <ArrowRight size={20} />
+             <List size={20} />
+             <span className="text-xs font-black uppercase tracking-widest hidden md:inline">План Навчання</span>
           </button>
+
+          <div className="hidden md:block h-8 w-px bg-[#1F232B]" />
+
+          <div className="text-left overflow-hidden">
+             <div className="flex items-center gap-2 text-[9px] font-black uppercase text-gray-500 tracking-widest mb-1">
+                <span className={brandAccent}>ЕТАП {currentStep.globalId}</span>
+                <ChevronRight size={10} />
+                <span>{flatSteps.length}</span>
+             </div>
+             <p className="text-base font-bold text-gray-200 truncate">{currentStep.title}</p>
+          </div>
         </div>
-      </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] ${isExtension ? 'bg-purple-600/10' : 'bg-yellow-600/10'} rounded-full blur-[120px] pointer-events-none opacity-50`} />
+        {/* Central Progress Bar (Desktop) */}
+        <div className="hidden lg:flex flex-col items-center justify-center w-64 absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
+           <div className="w-full h-1.5 bg-[#0A0C10] rounded-full overflow-hidden border border-[#1F232B]">
+              <div 
+                className={`h-full ${isExtension ? 'bg-purple-600' : 'bg-yellow-500'} transition-all duration-500`}
+                style={{ width: `${progressPercent}%` }}
+              />
+           </div>
+        </div>
 
-        <div className="max-w-2xl w-full space-y-12 text-center relative z-10">
-          
-          <div className="space-y-6">
-            <div className="relative inline-block">
-              {isActive && (
-                <div className={`absolute inset-0 ${isExtension ? 'bg-purple-500' : 'bg-yellow-500'} rounded-full blur-[80px] opacity-40 animate-pulse scale-150`} />
-              )}
-              <div className={`w-56 h-56 rounded-[4rem] border-8 ${isActive ? (isExtension ? 'border-purple-500/20' : 'border-yellow-500/20') : 'border-[#1F232B]'} shadow-2xl flex items-center justify-center bg-[#12141C] relative z-10 transition-all duration-1000 ${isActive ? 'scale-105' : 'grayscale-[0.5] opacity-60'}`}>
-                {isActive ? (
-                  <div className="flex gap-2.5 items-center justify-center h-20 w-40">
-                    {[...Array(6)].map((_, i) => (
-                      <div 
-                        key={i} 
-                        className={`w-2.5 ${isExtension ? 'bg-purple-500' : 'bg-yellow-500'} rounded-full transition-all duration-150 shadow-[0_0_15px_rgba(168,85,247,0.4)]`} 
-                        style={{ 
-                          height: `${30 + Math.random() * 100}%`, 
-                          animation: `pulseHeight 1s infinite alternate ${i * 100}ms`
-                        }} 
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <Mic size={56} className="text-gray-700" />
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <h2 className="text-4xl font-black text-gray-100 tracking-tight uppercase">
-                {isActive ? (lang === 'uk' ? 'ARI ПРАЦЮЄ З ТОБОЮ' : 'ARI IS WORKING WITH YOU') : (lang === 'uk' ? 'ARI ГОТОВА ДО РОБОТИ' : 'ARI IS READY')}
-              </h2>
-              <div className="flex justify-center items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-700'}`} />
-                <p className="text-gray-500 font-black text-[10px] uppercase tracking-[0.3em]">
-                   Mode: Coach AI | {studentName}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-[#12141C]/80 backdrop-blur-xl p-10 rounded-[3.5rem] shadow-2xl border border-white/5 min-h-[220px] flex flex-col justify-center relative overflow-hidden group">
-            <div className={`absolute top-0 left-0 w-2 h-full ${brandAccent} opacity-0 group-hover:opacity-100 transition-opacity`} />
-            
-            {transcript.length > 0 ? (
-              <div className="space-y-5 text-left">
-                {transcript.map((msg, i) => (
-                  <div key={i} className="animate-in fade-in slide-in-from-left-4 duration-500">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className={`w-1 h-3 ${brandAccent} rounded-full`} />
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${brandAccent}`}>{msg.role}</span>
-                    </div>
-                    <p className="text-sm font-bold text-gray-200 leading-relaxed pl-4">{msg.text}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-4 opacity-10">
-                <MessageCircle size={48} />
-                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-400">
-                  {lang === 'uk' ? 'Чекаємо на голос ARI...' : 'Waiting for ARI voice...'}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center gap-8">
-            <button 
-              onClick={isActive ? stopSession : startSession}
-              disabled={isConnecting}
-              className={`group relative overflow-hidden px-16 py-8 rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl transition-all duration-500 flex items-center gap-4 mx-auto ${
-                isActive 
-                  ? 'bg-red-500 text-white hover:bg-red-600 hover:scale-105' 
-                  : (isExtension ? 'bg-purple-600 hover:bg-purple-700 hover:shadow-purple-500/30' : 'bg-yellow-600 hover:bg-yellow-700 hover:shadow-yellow-500/30') + ' text-white hover:scale-110'
-              } disabled:opacity-50 disabled:scale-100`}
-            >
-              {!isActive && (
-                <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 skew-x-12" />
-              )}
-              {isConnecting ? (
-                <Loader2 className="animate-spin" size={24} />
-              ) : isActive ? (
-                <MicOff size={24} className="group-hover:rotate-12 transition-transform" />
-              ) : (
-                <Mic size={24} className="group-hover:scale-125 transition-transform" />
-              )}
-              {isConnecting ? (lang === 'uk' ? 'З\'ЄДНАННЯ...' : 'CONNECTING...') : isActive ? (lang === 'uk' ? 'ЗАВЕРШИТИ ПРАКТИКУ' : 'FINISH PRACTICE') : (lang === 'uk' ? 'ПОЧАТИ ПРАКТИКУ З ARI' : 'START PRACTICE WITH ARI')}
+        <div className="flex items-center gap-4 shrink-0">
+           <div className="flex items-center gap-2">
+              <button 
+                onClick={handlePrevStep} 
+                disabled={currentStepIndex === 0} 
+                className="w-10 h-10 flex items-center justify-center bg-[#0A0C10] border border-[#1F232B] hover:border-gray-500 rounded-xl text-gray-400 disabled:opacity-30 transition-all"
+              >
+                 <ChevronLeft size={18} />
+              </button>
+              
+              <button 
+                onClick={handleNextStep} 
+                disabled={currentStepIndex === flatSteps.length - 1 || !canProceed} 
+                className={`h-10 px-6 rounded-xl transition-all flex items-center gap-2 border ${
+                  canProceed 
+                    ? (isExtension ? 'bg-purple-600 border-purple-500 text-white hover:bg-purple-700' : 'bg-yellow-600 border-yellow-500 text-white hover:bg-yellow-700')
+                    : 'bg-[#0A0C10] border-[#1F232B] text-gray-500 cursor-not-allowed opacity-50'
+                }`}
+              >
+                 <span className="text-[10px] font-black uppercase tracking-widest">Далі</span>
+                 {canProceed ? <ArrowRight size={14} /> : <Lock size={12} />}
+              </button>
+           </div>
+           
+           {onClose && (
+            <button onClick={handleClose} className="p-2.5 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 rounded-xl text-red-400 transition-all ml-2">
+              <X size={18} />
             </button>
-          </div>
+          )}
         </div>
       </div>
 
-      <style>{`
-        @keyframes pulseHeight {
-          from { height: 20%; opacity: 0.3; }
-          to { height: 100%; opacity: 1; }
-        }
-      `}</style>
+      <div className="flex-1 flex relative overflow-hidden">
+         {/* STEPS DRAWER (LIST) */}
+         <div className={`absolute top-0 left-0 bottom-0 w-80 bg-[#0A0C10] border-r border-[#1F232B] z-20 transition-transform duration-300 transform ${showStepList ? 'translate-x-0' : '-translate-x-full'} flex flex-col shadow-2xl`}>
+            <div className="p-4 border-b border-[#1F232B] bg-[#12141C]">
+               <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest">Структура Курсу</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+               {flatSteps.map((step, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => handleJumpToStep(idx)}
+                   className={`w-full text-left p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                     idx === currentStepIndex 
+                       ? `bg-white/5 ${brandBorder} text-white` 
+                       : 'bg-transparent border-transparent text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                   }`}
+                 >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${idx === currentStepIndex ? `${brandAccent} border-current` : 'border-gray-700 text-gray-700'}`}>
+                       {step.globalId}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <p className="text-[10px] font-bold truncate uppercase">{step.title}</p>
+                       <p className="text-[9px] opacity-60 flex items-center gap-1">
+                          {step.type === 'quiz' ? <HelpCircle size={8} /> : <Film size={8} />}
+                          {step.type === 'quiz' ? 'Тестування' : 'Відео-лекція'}
+                       </p>
+                    </div>
+                    {idx < currentStepIndex && <CheckCircle2 size={12} className="text-green-500" />}
+                 </button>
+               ))}
+            </div>
+         </div>
+
+         {/* MAIN CONTENT AREA */}
+         <div className="flex-1 p-6 md:p-10 flex flex-col relative z-10 overflow-y-auto custom-scrollbar">
+            
+            <div className="w-full max-w-5xl mx-auto space-y-8 pb-20">
+               {/* STEP INDICATOR BANNER */}
+               <div className="flex items-center gap-4 opacity-50 mb-4">
+                  <div className={`px-3 py-1 rounded-full border ${brandBorder} ${brandAccent} text-[9px] font-black uppercase tracking-widest`}>
+                     {currentStep.type === 'quiz' ? 'Етап Тестування' : 'Етап Навчання'}
+                  </div>
+                  <div className="h-px bg-gray-700 flex-1" />
+               </div>
+
+               {/* QUIZ MODE */}
+               {currentStep.type === 'quiz' ? (
+                 <div className="bg-[#12141C] border border-[#1F232B] rounded-[3rem] p-10 shadow-2xl animate-in zoom-in duration-500">
+                    <div className="flex items-center justify-between mb-8 border-b border-[#1F232B] pb-6">
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest mb-2">Перевірка знань</p>
+                          <h3 className="text-3xl font-black text-white uppercase flex items-center gap-3">
+                             <Zap className={brandAccent} size={28} /> {currentStep.title}
+                          </h3>
+                       </div>
+                       {quizSubmitted && (
+                          <div className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border ${quizScore >= 90 ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                             Результат: {quizScore.toFixed(0)}%
+                          </div>
+                       )}
+                    </div>
+                    
+                    <div className="space-y-8">
+                       {currentStep.quizQuestions?.map((q, idx) => (
+                          <div key={q.id} className="space-y-4">
+                             <p className="text-base font-bold text-gray-200 flex gap-3">
+                                <span className="text-gray-600">{idx + 1}.</span> {q.question}
+                             </p>
+                             <div className="grid grid-cols-1 gap-3 pl-6">
+                                {q.options.map((opt, oIdx) => {
+                                   const isSelected = quizAnswers[q.id] === oIdx;
+                                   const isCorrect = q.correctOptionIndex === oIdx;
+                                   let style = "bg-[#0A0C10] border-[#1F232B] text-gray-400 hover:border-gray-500";
+                                   
+                                   if (quizSubmitted) {
+                                      if (isCorrect) style = "bg-green-500/10 border-green-500 text-green-400";
+                                      else if (isSelected && !isCorrect) style = "bg-red-500/10 border-red-500 text-red-400";
+                                      else style = "bg-[#0A0C10] border-[#1F232B] text-gray-600 opacity-50";
+                                   } else if (isSelected) {
+                                      style = `bg-white/10 border-white text-white`;
+                                   }
+
+                                   return (
+                                     <button 
+                                       key={oIdx}
+                                       disabled={quizSubmitted}
+                                       onClick={() => setQuizAnswers(prev => ({ ...prev, [q.id]: oIdx }))}
+                                       className={`w-full text-left p-5 rounded-2xl border text-sm font-medium transition-all ${style}`}
+                                     >
+                                        {opt}
+                                     </button>
+                                   )
+                                })}
+                             </div>
+                          </div>
+                       ))}
+                       {(!currentStep.quizQuestions || currentStep.quizQuestions.length === 0) && (
+                          <div className="p-10 text-center text-gray-500 bg-[#0A0C10] rounded-3xl border border-dashed border-[#1F232B]">
+                             Питання відсутні для цього тесту. Натисніть "Далі".
+                          </div>
+                       )}
+                    </div>
+
+                    <div className="mt-10 pt-6 border-t border-[#1F232B]">
+                      {!quizSubmitted && currentStep.quizQuestions && currentStep.quizQuestions.length > 0 ? (
+                         <button 
+                           onClick={handleQuizSubmit}
+                           disabled={Object.keys(quizAnswers).length < currentStep.quizQuestions.length}
+                           className={`w-full py-5 ${brandAccent === 'text-purple-400' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                         >
+                            Здати тест
+                         </button>
+                      ) : (
+                         <div className="flex gap-4">
+                            {quizScore < 90 && quizSubmitted && (
+                              <button onClick={() => { setQuizSubmitted(false); setQuizAnswers({}); }} className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 transition-all">
+                                 <RefreshCw size={14} /> Спробувати ще раз
+                              </button>
+                            )}
+                            {(quizScore >= 90 || !currentStep.quizQuestions || currentStep.quizQuestions.length === 0) && (
+                              <button onClick={handleNextStep} className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20">
+                                 Наступний етап <ArrowRight size={14} />
+                              </button>
+                            )}
+                         </div>
+                      )}
+                    </div>
+                 </div>
+               ) : (
+                 // LECTURE MODE (VIDEO + DESCRIPTION)
+                 <div className="space-y-8">
+                    {/* Media Display - Main Focus */}
+                    <div className="w-full bg-black rounded-[2.5rem] border-4 border-[#1F232B] shadow-2xl overflow-hidden relative group aspect-video">
+                       {currentStep.media ? (
+                          <video 
+                            src={currentStep.media} 
+                            className="w-full h-full object-contain bg-black" 
+                            controls 
+                            autoPlay 
+                            muted // Required for autoplay usually
+                            playsInline 
+                          />
+                       ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-700 bg-[#050505]">
+                             <Video size={64} className="mb-4 opacity-30" />
+                             <span className="text-sm font-black uppercase tracking-widest opacity-50">Відео відсутнє</span>
+                             <p className="text-[10px] text-gray-600 mt-2">Слухайте пояснення ARI або читайте опис нижче</p>
+                          </div>
+                       )}
+                    </div>
+                    
+                    {/* Description Display */}
+                    <div className="bg-[#12141C] p-8 md:p-10 rounded-[2.5rem] border border-[#1F232B] text-left shadow-lg">
+                      <div className="flex items-center gap-3 mb-6 border-b border-[#1F232B] pb-6">
+                          <div className={`p-2 rounded-lg bg-[#0A0C10] border border-[#1F232B] ${brandAccent}`}>
+                             <PlayCircle size={20} />
+                          </div>
+                          <div>
+                             <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest">Матеріали Уроку</p>
+                             <h4 className="text-lg font-black text-white uppercase">{currentStep.title}</h4>
+                          </div>
+                      </div>
+                      
+                      {currentStep.description ? (
+                        <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed font-medium">
+                            {currentStep.description.split('\n').map((line, i) => (
+                              <p key={i} className="mb-3">{line}</p>
+                            ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-600 italic text-sm">Опис відсутній. Слухайте аудіо-супровід ARI.</p>
+                      )}
+                    </div>
+                 </div>
+               )}
+            </div>
+         </div>
+
+         {/* RIGHT SIDE: ARI INTERFACE */}
+         <div className="w-80 bg-[#12141C] border-l border-[#1F232B] flex flex-col relative z-20 shrink-0 shadow-xl">
+            <div className="p-5 border-b border-[#1F232B] flex items-center justify-between bg-[#12141C]">
+               <h3 className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2">
+                  <Sparkles size={12} className={brandAccent} /> AI Mentor (ARI)
+               </h3>
+               {isActive && (
+                  <div className="flex gap-1">
+                     <div className="w-1 h-1 bg-red-500 rounded-full animate-bounce" />
+                     <div className="w-1 h-1 bg-red-500 rounded-full animate-bounce [animation-delay:-0.1s]" />
+                     <div className="w-1 h-1 bg-red-500 rounded-full animate-bounce [animation-delay:-0.2s]" />
+                  </div>
+               )}
+            </div>
+            
+            {/* Transcript Area */}
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 bg-[#0A0C10]">
+               {transcript.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-700 opacity-40 space-y-4">
+                     <div className="w-16 h-16 rounded-[1.5rem] bg-[#1F232B] flex items-center justify-center border border-white/5">
+                        <MessageCircle size={24} />
+                     </div>
+                     <div className="text-center px-6">
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-1">ARI на зв'язку</p>
+                        <p className="text-[9px]">Натисніть START, щоб почати урок</p>
+                     </div>
+                  </div>
+               )}
+               {transcript.map((msg, i) => (
+                  <div key={i} className={`animate-in fade-in slide-in-from-bottom-2 ${msg.role === 'ARI' ? 'pl-2' : 'pr-2 text-right'}`}>
+                     <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${msg.role === 'ARI' ? brandAccent : 'text-gray-500'}`}>{msg.role}</p>
+                     <div className={`p-3.5 rounded-2xl text-[11px] font-medium leading-relaxed shadow-sm ${msg.role === 'ARI' ? 'bg-[#12141C] border border-[#1F232B] text-gray-200 rounded-tl-none' : 'bg-[#1F232B] text-white rounded-tr-none'}`}>
+                        {msg.text}
+                     </div>
+                  </div>
+               ))}
+            </div>
+
+            {/* Controls */}
+            <div className="p-5 border-t border-[#1F232B] bg-[#12141C]">
+               <button 
+                  onClick={isActive ? stopSession : startSession}
+                  disabled={isConnecting}
+                  className={`w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 ${
+                    isActive 
+                      ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-900/20' 
+                      : (isExtension ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-900/30' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-900/30') + ' text-white'
+                  } disabled:opacity-50`}
+               >
+                  {isConnecting ? <Loader2 className="animate-spin" size={16} /> : isActive ? <MicOff size={16} /> : <Mic size={16} />}
+                  {isConnecting ? 'ПІДКЛЮЧЕННЯ...' : isActive ? 'ЗАВЕРШИТИ' : 'СТАРТ СЕСІЇ'}
+               </button>
+            </div>
+         </div>
+      </div>
     </div>
   );
 };

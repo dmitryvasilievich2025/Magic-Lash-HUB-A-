@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { AuditResult } from '../types';
+import { AuditResult, Lesson, Course, Section } from '../types';
 
 export const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -94,6 +93,183 @@ export const analyzeLashWork = async (images: string[], prompt: string): Promise
 };
 
 /**
+ * Генерація структури курсу з тексту (Gemini 3 Flash)
+ */
+export const generateCourseStructure = async (rawText: string): Promise<Section[]> => {
+  const ai = getAI();
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `
+      Analyze the following unstructured text.
+      Organize it into a structured array of SECTIONS -> LESSONS -> STEPS for a learning platform.
+      
+      RULES:
+      1. Group content into logical Sections (Modules).
+      2. Inside Sections, create Lessons.
+      3. Inside Lessons, create Steps.
+      4. Steps can be 'lecture' or 'quiz'.
+      5. Extract URLs for media if present.
+      6. Provide descriptions for everything.
+      
+      TEXT TO ANALYZE:
+      ${rawText}
+    `,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            lessons: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                   title: { type: Type.STRING },
+                   description: { type: Type.STRING },
+                   steps: {
+                      type: Type.ARRAY,
+                      items: {
+                         type: Type.OBJECT,
+                         properties: {
+                            title: { type: Type.STRING },
+                            description: { type: Type.STRING },
+                            type: { type: Type.STRING, enum: ["lecture", "quiz", "interaction"] },
+                            media: { type: Type.STRING },
+                            aiPrompt: { type: Type.STRING },
+                            // Legacy quiz fields if single
+                            question: { type: Type.STRING },
+                            correctAnswer: { type: Type.STRING },
+                            // Array for full quiz
+                            quizQuestions: {
+                               type: Type.ARRAY,
+                               items: {
+                                  type: Type.OBJECT,
+                                  properties: {
+                                     question: { type: Type.STRING },
+                                     options: { type: Type.ARRAY, items: { type: Type.STRING }},
+                                     correctOptionIndex: { type: Type.NUMBER }
+                                  }
+                               }
+                            }
+                         },
+                         required: ["title", "type"]
+                      }
+                   }
+                },
+                required: ["title", "steps"]
+              }
+            }
+          },
+          required: ["title", "lessons"]
+        }
+      }
+    }
+  });
+
+  if (!response.text) {
+    throw new Error("Failed to generate course structure");
+  }
+
+  // Parse and normalize IDs
+  const data = JSON.parse(response.text);
+  return data.map((sec: any, sIdx: number) => ({
+    id: `sec-${Date.now()}-${sIdx}`,
+    title: sec.title,
+    description: sec.description || '',
+    lessons: sec.lessons.map((les: any, lIdx: number) => ({
+      id: `l-${Date.now()}-${sIdx}-${lIdx}`,
+      title: les.title,
+      description: les.description || '',
+      steps: les.steps.map((step: any, stIdx: number) => ({
+        id: (sIdx + 1) * 1000 + (lIdx + 1) * 100 + stIdx,
+        ...step,
+        quizQuestions: step.quizQuestions?.map((q: any, qIdx: number) => ({
+           id: `q-${Date.now()}-${qIdx}`,
+           ...q
+        }))
+      }))
+    }))
+  }));
+};
+
+/**
+ * Генерація маркетингового опису курсу на основі програми
+ */
+export const generateCourseSummary = async (course: Course): Promise<string> => {
+  const ai = getAI();
+  
+  // Flatten structure for prompt
+  const structure = course.sections?.map(s => 
+    `Section: ${s.title}\n` + s.lessons.map(l => 
+       `  Lesson: ${l.title}\n` + l.steps.map(step => `    - ${step.title}`).join('\n')
+    ).join('\n')
+  ).join('\n\n') || '';
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `
+      Act as a professional educational copywriter for the Beauty Industry (Lash & Brow).
+      Write a compelling, structured course description (summary).
+      
+      Course Title: ${course.title}
+      
+      Curriculum Structure:
+      ${structure}
+      
+      Generate ONLY the description text.
+    `
+  });
+
+  return response.text?.trim() || '';
+};
+
+/**
+ * Генерація розумного контенту для полів курсу (Smart Autofill)
+ */
+export const generateSmartContent = async (
+  context: { 
+    courseTitle: string; 
+    lessonTitle: string; 
+    stepTitle?: string;
+    existingContent?: string;
+  }, 
+  targetField: 'aiPrompt' | 'videoPrompt' | 'interactionPrompt'
+): Promise<string> => {
+  const ai = getAI();
+  
+  let systemPrompt = '';
+  if (targetField === 'aiPrompt') {
+    systemPrompt = "You are an educational content creator. Generate a detailed summary/description for a lesson step. Focus on theory, key concepts, and what the student will learn.";
+  } else if (targetField === 'videoPrompt') {
+    systemPrompt = "You are a director for educational videos. Create a detailed visual script for a 1-minute video generation (using Veo). Describe the scene, camera angles (macro/close-up), lighting (studio/soft), and action. The subject is Beauty/Lash industry.";
+  } else if (targetField === 'interactionPrompt') {
+    systemPrompt = "You are configuring an AI Tutor persona (ARI). Write instructions for the AI on how to teach this specific step. Define what questions to ask the student, what to explain, and tone of voice (professional, encouraging).";
+  }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `
+      ${systemPrompt}
+
+      CONTEXT:
+      Course: ${context.courseTitle}
+      Lesson: ${context.lessonTitle}
+      Step: ${context.stepTitle || 'Intro'}
+      Additional Info: ${context.existingContent || 'N/A'}
+
+      Generate the content for the '${targetField}' field. Output ONLY the generated text, no markdown or labels.
+    `
+  });
+
+  return response.text?.trim() || '';
+};
+
+/**
  * Генерація відео (Veo 3.1)
  */
 export const generateEducationalVideo = async (prompt: string, imageBase64?: string) => {
@@ -109,8 +285,8 @@ export const generateEducationalVideo = async (prompt: string, imageBase64?: str
     }),
     config: {
       numberOfVideos: 1,
-      resolution: '720p',
       aspectRatio: '16:9'
+      // resolution removed as it's not supported in current API version for this model
     }
   });
 
