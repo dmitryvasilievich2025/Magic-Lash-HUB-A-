@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   BookOpen, DollarSign, Layout, Sparkles, Mic, 
   ShoppingBag, UserCircle, LogOut,
   Shield, Users, User, UserPlus, Layers, Plus, GraduationCap, LayoutDashboard, LogIn, Loader2,
-  AlertTriangle, Copy, Check, Info, Globe, Link as LinkIcon, ArrowRight, ExternalLink, RefreshCw, AlertCircle, Eye, Settings, ExternalLink as NewTab, Mail, Lock, CheckSquare, Square
+  AlertTriangle, Copy, Check, Info, Globe, Link as LinkIcon, ArrowRight, ExternalLink, RefreshCw, AlertCircle, Eye, Settings, ExternalLink as NewTab, Mail, Lock, CheckSquare, Square, Zap, X
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { TabType, Course, UserRole, Invoice, Language, Section } from './types';
@@ -15,10 +16,9 @@ import Showcase from './components/Showcase';
 import StudentDashboard from './components/StudentDashboard';
 import GuestChat from './components/GuestChat';
 import SpecialistDashboard from './components/SpecialistDashboard';
-import { auth, db, loginWithGoogle, logout, saveInvoiceToDB, syncUserProfile, registerWithEmail, loginWithEmail, subscribeToCourses, saveCourseToDB } from './services/firebase';
+import { auth, db, loginWithGoogle, logout, saveInvoiceToDB, syncUserProfile, registerWithEmail, loginWithEmail, loginAnonymously, subscribeToCourses, saveCourseToDB } from './services/firebase';
 
 const App: React.FC = () => {
-  // Safe language initialization
   const [language, setLanguage] = useState<Language>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('app_lang');
@@ -28,54 +28,39 @@ const App: React.FC = () => {
   });
 
   const [user, setUser] = useState<any>(null);
-  
-  // REAL ROLE: The actual role from DB (permissions)
   const [realRole, setRealRole] = useState<UserRole>('guest');
-  // ROLE: The current UI state (can be switched by admin)
   const [role, setRole] = useState<UserRole>('guest');
-  
   const [activeTab, setActiveTab] = useState<TabType>('showcase');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [userProfile, setUserProfile] = useState<any>(null);
   
-  // Login States
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPreLoginModal, setShowPreLoginModal] = useState(false); 
   const [loginError, setLoginError] = useState<{title: string, message: string, code?: string} | null>(null);
-  const [currentDomain, setCurrentDomain] = useState('');
   
-  // Email Auth Form State
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '' });
-  const [rememberMe, setRememberMe] = useState(true); // New state for persistence
+  const [rememberMe, setRememberMe] = useState(true);
 
-  // Detect preview environment
-  const isPreviewEnv = useMemo(() => {
-    return currentDomain.includes('scf.usercontent.goog') || currentDomain.includes('web.app') || currentDomain.includes('localhost');
-  }, [currentDomain]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setCurrentDomain(window.location.hostname);
-    }
-  }, []);
-
-  // Auth & Role Logic
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         try {
           const profile = await syncUserProfile(currentUser);
-          const userRole = profile?.role as UserRole || 'student';
+          setUserProfile(profile);
+          const userRole = (profile?.role as UserRole) || 'student';
+          setRealRole(userRole);
+          setRole(userRole);
           
-          setRealRole(userRole); // Set the true role
-          setRole(userRole);     // Set initial view role
-          
-          if (userRole === 'admin' || userRole === 'specialist') {
-            setActiveTab('specialist-dashboard');
-          } else {
-            setActiveTab('my-courses');
+          if (activeTab === 'showcase' || activeTab === 'guest-chat') {
+            if (userRole === 'admin' || userRole === 'specialist') setActiveTab('specialist-dashboard');
+            else setActiveTab('my-courses');
           }
           setShowPreLoginModal(false); 
         } catch (e) {
@@ -84,20 +69,20 @@ const App: React.FC = () => {
       } else {
         setRealRole('guest');
         setRole('guest');
+        setUserProfile(null);
         setActiveTab('showcase');
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Invoices Sync
   useEffect(() => {
-    if (!user) {
+    if (!user || role === 'guest') {
       setInvoices([]);
       return;
     }
+
     try {
-      // Logic adapts to the SIMULATED role to allow Admins to test Student views
       const q = (role === 'admin' || role === 'specialist')
         ? collection(db, "invoices") 
         : query(collection(db, "invoices"), where("studentId", "==", user.uid));
@@ -105,14 +90,45 @@ const App: React.FC = () => {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as Invoice[];
         setInvoices(docs.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()));
+      }, (err) => {
+        console.error("Invoices listener error:", err);
       });
       return () => unsubscribe();
     } catch (err) {
       console.error("Firestore init error:", err);
     }
-  }, [user, role]); // Depend on 'role' (simulated) not 'realRole'
+  }, [user, role]);
 
-  // --- Translation Logic ---
+  useEffect(() => {
+    setIsLoadingCourses(true);
+    const unsubscribe = subscribeToCourses((fetchedCourses) => {
+      const normalized = fetchedCourses.map(c => ({
+        ...c,
+        isPublished: c.isPublished ?? true,
+        sections: c.sections || []
+      }));
+      setCourses([...normalized].sort((a, b) => a.id.localeCompare(b.id)));
+      setIsLoadingCourses(false);
+    });
+    
+    const timer = setTimeout(() => {
+      setIsLoadingCourses(false);
+    }, 3000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const activeCourse = useMemo(() => {
+    if (courses.length === 0) return null;
+    if (activeCourseId) {
+      return courses.find(c => String(c.id) === String(activeCourseId)) || courses[0];
+    }
+    return courses[0];
+  }, [courses, activeCourseId]);
+
   const t = useMemo(() => {
     const translations = {
       uk: {
@@ -145,110 +161,6 @@ const App: React.FC = () => {
     return translations[language] || translations['uk'];
   }, [language]);
 
-  // Initial State (Static fallback with new Section structure)
-  const defaultCourses: Course[] = [
-    { 
-      id: 'c1', 
-      title: 'InLei® Lash Filler 25.9', 
-      isExtensionCourse: false, 
-      price: 550, 
-      description: 'Революційна формула для потовщення вій. Хімія складів та повний протокол процедури.', 
-      image: 'https://images.unsplash.com/photo-1587779782508-c07aef00d724?auto=format&fit=crop&q=80&w=800', 
-      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-getting-her-eyebrows-done-43765-large.mp4',
-      sections: [], // Will be empty initially or populated
-      isPublished: true
-    },
-    { 
-      id: 'c2', 
-      title: 'Anime Kirpik Maratonu (5 efekt)', 
-      isExtensionCourse: true, 
-      price: 30, 
-      description: 'Anime kirpikler şu anda en büyük trend. Ve müşteriler bunu çoktan soruyor. 👀✨ Bu maratonda 5 farklı anime efekti öğreneceksiniz.', 
-      image: 'https://images.unsplash.com/photo-1596704017254-9b1b1848fb11?auto=format&fit=crop&q=80&w=800',
-      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-putting-on-false-lashes-in-the-mirror-43759-large.mp4',
-      sections: [],
-      isPublished: true
-    },
-    { 
-      id: 'c3', 
-      title: 'Lash Adhesive Master', 
-      isExtensionCourse: true, 
-      price: 300, 
-      description: 'Робота з клеєм в екстремальних умовах: температура, вологість та секрети носки.', 
-      image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800',
-      previewVideo: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-326-large.mp4',
-      sections: [],
-      isPublished: true
-    },
-    { 
-      id: 'c4', 
-      title: 'Lash Lifting Basics', 
-      isExtensionCourse: false, 
-      price: 250, 
-      description: 'Learn the fundamentals of lash lifting techniques for natural lash enhancement.', 
-      image: 'https://images.unsplash.com/photo-1509631179647-b849171184a8?auto=format&fit=crop&q=80&w=800',
-      previewVideo: '',
-      sections: [],
-      isPublished: true
-    },
-  ];
-
-  const [courses, setCourses] = useState<Course[]>(defaultCourses);
-
-  // Sync Courses from DB
-  useEffect(() => {
-    const unsubscribe = subscribeToCourses((fetchedCourses) => {
-      if (fetchedCourses.length > 0) {
-        // Normalize fetched courses: 
-        // 1. ensure isPublished is set (default true for legacy)
-        // 2. ensure sections existence (migrate lessons to sections if sections are missing)
-        const normalized = fetchedCourses.map(c => {
-          let updatedSections = c.sections || [];
-          
-          // Migration logic: If no sections but lessons exist, wrap them in a default section
-          if (updatedSections.length === 0 && c.lessons && c.lessons.length > 0) {
-            updatedSections = [{
-              id: 'sec-default',
-              title: 'Основна Програма',
-              description: 'Базовий модуль курсу',
-              lessons: c.lessons
-            }];
-          }
-
-          return {
-            ...c,
-            isPublished: c.isPublished ?? true, // Default to true if field is missing
-            sections: updatedSections,
-            lessons: [] // Clear legacy field to avoid confusion in future
-          };
-        });
-
-        // Sort by ID to keep order
-        const sorted = [...normalized].sort((a, b) => a.id.localeCompare(b.id));
-        setCourses(sorted);
-      } else {
-        // If DB is empty, we keep defaultCourses
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleCourseUpdate = (updatedCourse: Course) => {
-    // Optimistic update for UI responsiveness
-    setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
-  };
-  
-  const handleCourseSave = async (courseToSave: Course) => {
-    try {
-      await saveCourseToDB(courseToSave);
-      alert(language === 'uk' ? 'Курс успішно збережено!' : 'Course saved successfully!');
-    } catch (e) {
-      console.error("Failed to save course", e);
-      alert(language === 'uk' ? 'Помилка збереження.' : 'Error saving course.');
-    }
-  };
-
-  // Sidebar Items Definition
   const sidebarItems = useMemo(() => {
     const allItems = [
       { id: 'showcase', icon: ShoppingBag, label: t.showcase, roles: ['guest', 'student', 'admin', 'specialist'] },
@@ -260,12 +172,8 @@ const App: React.FC = () => {
       { id: 'ai-lab', icon: Sparkles, label: t.aiLab, roles: ['admin'] },
       { id: 'finance', icon: DollarSign, label: t.finance, roles: ['student', 'specialist', 'admin'] },
     ];
-    // Filter items based on current (simulated) role
     return allItems.filter(item => item.roles.includes(role));
   }, [role, t]);
-
-  const [activeCourseId, setActiveCourseId] = useState('c1');
-  const activeCourse = useMemo(() => courses.find(c => c.id === activeCourseId) || courses[0], [courses, activeCourseId]);
 
   const roleMeta = {
     guest: { icon: UserPlus, label: t.roles?.guest || 'Guest', color: 'text-gray-400' },
@@ -274,158 +182,104 @@ const App: React.FC = () => {
     admin: { icon: Shield, label: t.roles?.admin || 'Admin', color: 'text-purple-400' }
   };
 
-  // Demo Invoices for new Students to show "My Courses" populated
-  const effectiveInvoices = useMemo(() => {
-    if (role === 'student' && invoices.length === 0) {
-      // Return demo invoices so the student sees courses
-      return [
-        {
-          id: 'demo-1',
-          student: user?.displayName || 'Student',
-          studentId: user?.uid,
-          course: 'InLei® Lash Filler 25.9',
-          total: 550,
-          paid: 550,
-          status: 'paid',
-          dueDate: new Date().toISOString(),
-          payments: []
-        },
-        {
-          id: 'demo-2',
-          student: user?.displayName || 'Student',
-          studentId: user?.uid,
-          course: 'Magic Lash Geometry',
-          total: 450,
-          paid: 0,
-          status: 'unpaid',
-          dueDate: new Date().toISOString(),
-          payments: []
-        }
-      ] as Invoice[];
-    }
-    return invoices;
-  }, [role, invoices, user]);
-
-  // --- Handlers ---
-
-  const handleLoginClick = () => {
-     setCurrentDomain(window.location.hostname);
-     setShowPreLoginModal(true);
-     setLoginError(null);
-     setIsRegistering(false);
-     setIsLoggingIn(false); // Reset loading state just in case
-     
-     // Recover email from localStorage
-     const savedEmail = localStorage.getItem('hub_user_email') || '';
-     setAuthForm({ email: savedEmail, password: '', name: '' });
-     setRememberMe(!!savedEmail || true); // If email saved, assume remember me was checked
-  };
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoggingIn) return;
     setIsLoggingIn(true);
     setLoginError(null);
-
     try {
-      if (isRegistering) {
-        if (!authForm.name) throw new Error("Введіть ваше ім'я");
-        await registerWithEmail(authForm.email, authForm.password, authForm.name, rememberMe);
-      } else {
-        await loginWithEmail(authForm.email, authForm.password, rememberMe);
-      }
-      
-      // Save or Clear Email based on "Remember Me"
-      if (rememberMe) {
-        localStorage.setItem('hub_user_email', authForm.email);
-      } else {
-        localStorage.removeItem('hub_user_email');
-      }
-      
-      setIsLoggingIn(false);
-
+      if (isRegistering) await registerWithEmail(authForm.email, authForm.password, authForm.name, rememberMe);
+      else await loginWithEmail(authForm.email, authForm.password, rememberMe);
     } catch (error: any) {
-      console.error("Auth failed:", error);
+      setLoginError({ title: "Помилка", message: error.message });
+    } finally {
       setIsLoggingIn(false);
-
-      let errorTitle = isRegistering ? "Помилка реєстрації" : "Помилка входу";
-      let errorMsg = "Перевірте дані та спробуйте ще раз.";
-
-      if (error.code === 'auth/email-already-in-use') errorMsg = "Цей email вже зареєстрований.";
-      else if (error.code === 'auth/wrong-password') errorMsg = "Невірний пароль.";
-      else if (error.code === 'auth/user-not-found') errorMsg = "Користувача не знайдено.";
-      else if (error.code === 'auth/weak-password') errorMsg = "Пароль занадто слабкий.";
-
-      setLoginError({ title: errorTitle, message: errorMsg, code: error.code });
     }
   };
 
-  const executeGoogleLogin = async () => {
-    if (isLoggingIn) return;
+  const handleGoogleAuth = async () => {
     setIsLoggingIn(true);
-    setLoginError(null);
-    try {
-      await loginWithGoogle(rememberMe); // Pass rememberMe to service
-      // Note: Google login doesn't expose email easily here to save to localStorage for pre-fill, 
-      // but session persistence is handled by firebase service.
-      setIsLoggingIn(false);
-    } catch (error: any) {
-      console.error("Google Login failed:", error);
-      setIsLoggingIn(false); 
-      setLoginError({ title: "Google Auth Error", message: error.message, code: error.code });
-    }
+    try { await loginWithGoogle(rememberMe); } catch (e: any) { setLoginError({title: "Google Error", message: e.message}); }
+    finally { setIsLoggingIn(false); }
+  };
+
+  const handleAnonAdmin = async () => {
+    setIsLoggingIn(true);
+    try { await loginAnonymously(); } catch (e: any) { setLoginError({title: "Anon Error", message: e.message}); }
+    finally { setIsLoggingIn(false); }
+  };
+
+  const handleCreateInitialCourse = async () => {
+    const newCourse: Course = {
+      id: `c-${Date.now()}`,
+      title: 'Lash Mastery Course',
+      description: 'Learn advanced lash techniques from the best.',
+      sections: [],
+      price: 500,
+      currency: 'USD',
+      image: 'https://images.unsplash.com/photo-1558704161-05002f70a220?auto=format&fit=crop&q=80&w=1000',
+      isPublished: false,
+      studentCount: 0
+    };
+    await saveCourseToDB(newCourse);
+    setActiveCourseId(newCourse.id);
   };
 
   return (
     <div className="flex h-screen bg-[#0A0C10] text-[#F0F2F5] overflow-hidden">
-      <aside className={`${isSidebarOpen ? 'w-80' : 'w-24'} bg-[#12141C] border-r border-[#1F232B] flex flex-col transition-all duration-300 z-20 shadow-2xl`}>
+      <aside 
+        className={`${isSidebarOpen ? 'w-80' : 'w-24'} bg-[#12141C] border-r border-[#1F232B] flex flex-col transition-all duration-300 z-20 shadow-2xl relative`}
+        aria-label="Навігація сайту"
+      >
         <div className="p-6 border-b border-[#1F232B] flex items-center justify-between shrink-0">
           {isSidebarOpen && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2">
               <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black">M</div>
               <span className="font-black text-[11px] uppercase tracking-[0.2em] text-purple-400">Magic Lash HUB</span>
             </div>
           )}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#1F232B] rounded-xl text-gray-500 transition-colors">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+            className="p-2.5 hover:bg-[#1F232B] rounded-xl text-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            aria-label={isSidebarOpen ? "Згорнути панель" : "Розгорнути панель"}
+          >
             <Layout size={20} />
           </button>
         </div>
 
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto custom-scrollbar" role="menubar">
           {sidebarItems.map((item) => (
             <button 
-              key={item.id}
-              onClick={() => setActiveTab(item.id as TabType)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-500 ${
-                activeTab === item.id ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'hover:bg-[#1F232B] text-gray-400'
-              }`}
+              key={item.id} 
+              onClick={() => setActiveTab(item.id as TabType)} 
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative group focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${activeTab === item.id ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'hover:bg-[#1F232B] text-gray-400'}`}
+              role="menuitem"
+              aria-label={item.label}
+              aria-current={activeTab === item.id ? 'page' : undefined}
             >
-              <item.icon size={22} />
-              {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-[0.15em]">{item.label}</span>}
+              <item.icon size={22} className="shrink-0" />
+              {isSidebarOpen ? (
+                <span className="text-[11px] font-black uppercase tracking-[0.15em] truncate animate-in fade-in slide-in-from-left-1">{item.label}</span>
+              ) : (
+                <div className="absolute left-full ml-4 px-3 py-2 bg-[#1F232B] text-white text-[10px] font-black uppercase tracking-widest rounded-xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all z-50 shadow-2xl whitespace-nowrap backdrop-blur-md border border-white/5">
+                   {item.label}
+                   <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-[#1F232B] rotate-45 border-l border-b border-white/5" />
+                </div>
+              )}
             </button>
           ))}
         </nav>
         
-        {/* ADMIN ROLE SWITCHER */}
         {realRole === 'admin' && isSidebarOpen && (
-          <div className="px-4 mb-4 animate-in fade-in slide-in-from-left-4">
+          <div className="px-4 mb-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="bg-[#1F232B]/50 border border-dashed border-purple-500/30 rounded-2xl p-3">
-              <div className="flex items-center gap-2 mb-2 text-[10px] font-black text-purple-400 uppercase tracking-widest">
-                <Eye size={12} /> Admin View Mode
-              </div>
+              <div className="flex items-center gap-2 mb-2 text-[10px] font-black text-purple-400 uppercase tracking-widest"><Eye size={12} /> View Mode</div>
               <div className="grid grid-cols-4 gap-1">
                 {(['guest', 'student', 'specialist', 'admin'] as UserRole[]).map((r) => (
-                   <button
-                     key={r}
-                     onClick={() => {
-                       setRole(r);
-                       // Reset active tab based on new role to avoid empty screens
-                       if (r === 'guest') setActiveTab('showcase');
-                       else if (r === 'student') setActiveTab('my-courses');
-                       else setActiveTab('specialist-dashboard');
-                     }}
-                     className={`p-2 rounded-lg flex items-center justify-center transition-all ${role === r ? 'bg-purple-600 text-white shadow-lg' : 'bg-white/5 text-gray-500 hover:text-white'}`}
-                     title={t.roles?.[r]}
+                   <button 
+                    key={r} 
+                    onClick={() => { setRole(r); if (r === 'guest') setActiveTab('showcase'); else if (r === 'student') setActiveTab('my-courses'); else setActiveTab('specialist-dashboard'); }} 
+                    className={`p-2 rounded-lg flex items-center justify-center transition-all focus:outline-none focus:ring-1 focus:ring-purple-500/50 ${role === r ? 'bg-purple-600 text-white shadow-lg' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                    aria-label={`Переглянути як ${roleMeta[r].label}`}
                    >
                      {React.createElement(roleMeta[r].icon, { size: 14 })}
                    </button>
@@ -437,69 +291,37 @@ const App: React.FC = () => {
 
         <div className="p-6 border-t border-[#1F232B]">
           <div className="bg-[#0A0C10] p-4 rounded-3xl border border-[#1F232B] flex items-center gap-4 group transition-all">
-            <div className="w-12 h-12 bg-[#12141C] border border-[#1F232B] rounded-2xl flex items-center justify-center overflow-hidden">
-              {user?.photoURL ? (
-                <img src={user.photoURL} className="w-full h-full object-cover" alt="Profile" />
-              ) : (
-                React.createElement(roleMeta[role].icon, { size: 24, className: roleMeta[role].color })
-              )}
+            <div className="w-12 h-12 bg-[#12141C] border border-[#1F232B] rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
+              {user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" alt="" /> : React.createElement(roleMeta[role].icon, { size: 24, className: roleMeta[role].color })}
             </div>
-            <div className="text-left overflow-hidden">
-              <p className="text-[9px] font-black uppercase text-gray-600 tracking-widest leading-none mb-1 truncate">{user?.displayName || 'ГІСТЬ'}</p>
-              <p className="text-[11px] font-black text-gray-200 uppercase">{roleMeta[role].label}</p>
-            </div>
+            {isSidebarOpen && (
+              <div className="text-left overflow-hidden animate-in fade-in">
+                <p className="text-[9px] font-black uppercase text-gray-600 tracking-widest leading-none mb-1 truncate">{user?.displayName || (role === 'admin' ? 'Адмін' : 'Гість')}</p>
+                <p className="text-[11px] font-black text-gray-200 uppercase">{roleMeta[role].label}</p>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 min-h-0 h-full relative">
-        <header className="h-16 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-10 shrink-0 shadow-sm relative z-10">
-          <div className="flex items-center gap-4">
-             <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse" />
-                <span className="text-[10px] font-black uppercase text-gray-500 tracking-[0.25em] font-bold">{t.syncActive}</span>
-             </div>
-
-             {isPreviewEnv && (
-               <button
-                  onClick={() => window.open(window.location.href, '_blank')}
-                  className="hidden md:flex px-4 py-2 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-xl text-[9px] font-black uppercase items-center gap-2 hover:bg-yellow-500/20 transition-all shadow-lg"
-               >
-                  <NewTab size={14} /> Open in New Tab
-               </button>
-             )}
-          </div>
-
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 h-full relative" role="main">
+        <header className="h-16 bg-[#12141C] border-b border-[#1F232B] flex items-center justify-between px-10 shrink-0 relative z-10 shadow-sm">
+          <div className="flex items-center gap-3"><div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse" /><span className="text-[10px] font-black uppercase text-gray-500 tracking-[0.25em] font-bold">{t.syncActive}</span></div>
           <div className="flex items-center gap-4">
             <div className="flex bg-[#0A0C10] p-1.5 rounded-2xl border border-[#1F232B] shadow-inner">
               {(['uk', 'en'] as const).map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => { setLanguage(lang); localStorage.setItem('app_lang', lang); }}
-                  className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all duration-300 ${language === lang ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  {lang}
-                </button>
+                <button key={lang} onClick={() => { setLanguage(lang); localStorage.setItem('app_lang', lang); }} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500/50 ${language === lang ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>{lang}</button>
               ))}
             </div>
-
-            {user ? (
-              <button onClick={logout} className="p-2.5 text-gray-500 hover:text-red-400 hover:bg-red-400/5 rounded-xl transition-all"><LogOut size={20} /></button>
-            ) : (
-              <button onClick={handleLoginClick} className="px-6 py-2.5 bg-purple-600 text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-lg shadow-purple-900/20 active:scale-95 transition-all">
-                <LogIn size={16} /> 
-                {t.login}
-              </button>
-            )}
+            {user ? <button onClick={logout} className="p-2.5 text-gray-500 hover:text-red-400 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-red-500/30" aria-label="Вийти"><LogOut size={20} /></button> : <button onClick={() => setShowPreLoginModal(true)} className="px-6 py-2.5 bg-purple-600 text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-lg active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500/50"><LogIn size={16} /> {t.login}</button>}
           </div>
         </header>
 
-        {/* AUTH MODAL */}
         {showPreLoginModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in p-6" role="dialog" aria-modal="true">
             <div className="bg-[#12141C] border border-[#1F232B] max-w-lg w-full rounded-[2.5rem] p-10 shadow-2xl relative animate-in zoom-in-95 flex flex-col">
-              <button onClick={() => { setShowPreLoginModal(false); setLoginError(null); }} className="absolute top-6 right-6 p-2 bg-[#0A0C10] rounded-full text-gray-500 hover:text-white transition-colors">
-                <LogOut size={20} className="rotate-180" />
+              <button onClick={() => { setShowPreLoginModal(false); setLoginError(null); }} className="absolute top-6 right-6 p-2 bg-[#0A0C10] rounded-full text-gray-500 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-white/20">
+                <X size={20} />
               </button>
               
               <div className="text-center space-y-4 mb-6">
@@ -509,141 +331,65 @@ const App: React.FC = () => {
                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">
                   {isRegistering ? 'Створити акаунт' : 'Вхід у HUB'}
                 </h3>
-                <p className="text-sm text-gray-400 font-medium leading-relaxed">
-                   Доступ до навчальної платформи Magic Lash
-                </p>
               </div>
 
-              <form onSubmit={handleEmailAuth} className="space-y-4">
+              <form onSubmit={handleEmailLogin} className="space-y-4">
                 {isRegistering && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-gray-500 ml-3">Ваше Ім'я</label>
-                    <div className="relative">
-                      <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                      <input 
-                        type="text"
-                        required
-                        className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white focus:ring-1 ring-purple-500/50 outline-none"
-                        placeholder="Марія Іванова"
-                        value={authForm.name}
-                        onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
-                      />
-                    </div>
-                  </div>
+                   <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 px-6 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-purple-500/30" placeholder="Ваше Ім'я" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} />
                 )}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-500 ml-3">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                    <input 
-                      type="email"
-                      required
-                      className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white focus:ring-1 ring-purple-500/50 outline-none"
-                      placeholder="student@example.com"
-                      value={authForm.email}
-                      onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-500 ml-3">Пароль</label>
-                  <div className="relative">
-                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                    <input 
-                      type="password"
-                      required
-                      minLength={6}
-                      className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white focus:ring-1 ring-purple-500/50 outline-none"
-                      placeholder="••••••••"
-                      value={authForm.password}
-                      onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
-                    />
-                  </div>
+                <input required type="email" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 px-6 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-purple-500/30" placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} />
+                <input required type="password" className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-2xl py-4 px-6 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-purple-500/30" placeholder="Пароль" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} />
+
+                <div className="flex items-center px-2">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div 
+                      onClick={() => setRememberMe(!rememberMe)}
+                      className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 ${rememberMe ? 'bg-purple-600 border-purple-600' : 'border-[#1F232B] group-hover:border-purple-500/50'}`}
+                    >
+                      {rememberMe && <Check size={14} className="text-white" />}
+                    </div>
+                    <span className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Запам'ятати мене</span>
+                  </label>
                 </div>
 
-                {/* REMEMBER ME CHECKBOX */}
-                <div className="flex items-center gap-3 px-3">
-                   <button 
-                     type="button" 
-                     onClick={() => setRememberMe(!rememberMe)}
-                     className="flex items-center gap-3 group"
-                   >
-                     <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${rememberMe ? 'bg-purple-600 border-purple-600 text-white' : 'bg-[#0A0C10] border-[#1F232B] text-transparent hover:border-purple-500/50'}`}>
-                        <Check size={14} strokeWidth={4} />
-                     </div>
-                     <span className={`text-[11px] font-bold uppercase tracking-wider transition-colors ${rememberMe ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`}>
-                       Запом'ятати мене
-                     </span>
-                   </button>
-                </div>
-
-                <button 
-                  type="submit"
-                  disabled={isLoggingIn}
-                  className="w-full py-5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 disabled:opacity-70 mt-6"
-                >
-                  {isLoggingIn ? <Loader2 size={18} className="animate-spin" /> : (isRegistering ? <UserPlus size={18} /> : <LogIn size={18} />)}
+                <button type="submit" disabled={isLoggingIn} className="w-full py-5 bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all focus:outline-none focus:ring-4 focus:ring-purple-500/20">
+                  {isLoggingIn ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
                   {isLoggingIn ? 'Обробка...' : (isRegistering ? 'Зареєструватися' : 'Увійти')}
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
-                 <button 
-                   onClick={() => { setIsRegistering(!isRegistering); setLoginError(null); }}
-                   className="text-xs font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-wider"
-                 >
-                   {isRegistering ? 'Вже є акаунт? Увійти' : 'Немає акаунту? Реєстрація'}
-                 </button>
-              </div>
-
-              <div className="my-6 flex items-center gap-4">
-                 <div className="h-px bg-[#1F232B] flex-1" />
-                 <span className="text-[10px] font-black uppercase text-gray-600">АБО</span>
-                 <div className="h-px bg-[#1F232B] flex-1" />
-              </div>
-
-              <button 
-                onClick={executeGoogleLogin}
-                className="w-full py-4 bg-[#0A0C10] hover:bg-[#1F232B] border border-[#1F232B] text-gray-300 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3"
-              >
-                <Globe size={14} /> Увійти через Google
+              <button onClick={() => setIsRegistering(!isRegistering)} className="mt-6 text-xs font-bold text-gray-500 hover:text-white uppercase transition-colors">
+                {isRegistering ? 'Вже є акаунт? Увійти' : 'Немає акаунту? Реєстрація'}
               </button>
 
-              {loginError && (
-                 <div className="mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
-                    <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
-                    <div>
-                       <p className="text-xs font-bold text-red-400 uppercase mb-1">{loginError.title}</p>
-                       <p className="text-xs text-gray-400">{loginError.message}</p>
-                    </div>
-                 </div>
-              )}
+              <div className="my-6 flex items-center gap-4"><div className="h-px bg-[#1F232B] flex-1" /><span className="text-[10px] font-black text-gray-600">АБО</span><div className="h-px bg-[#1F232B] flex-1" /></div>
+
+              <div className="grid grid-cols-2 gap-4">
+                 <button onClick={handleGoogleAuth} className="py-4 bg-[#0A0C10] border border-[#1F232B] rounded-2xl text-[10px] font-black uppercase text-white flex items-center justify-center gap-2 hover:bg-white/5 transition-all focus:outline-none focus:ring-2 focus:ring-white/10"><Globe size={14} /> Google</button>
+                 <button onClick={handleAnonAdmin} className="py-4 bg-[#1F232B] border border-orange-500/20 rounded-2xl text-[9px] font-black uppercase text-orange-400 flex items-center justify-center gap-2 hover:bg-orange-500/10 transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/30"><Zap size={14} /> Анонімний Admin</button>
+              </div>
+
+              {loginError && <p className="mt-4 text-xs text-red-400 font-bold uppercase text-center animate-bounce">{loginError.message}</p>}
             </div>
           </div>
         )}
 
         <div className="flex-1 min-h-0 flex flex-col relative">
-          {activeTab === 'showcase' && <Showcase lang={language} user={user} role={role} onPurchase={saveInvoiceToDB} onNavigate={setActiveTab} courses={courses} onSetActiveCourse={setActiveCourseId} />}
-          {activeTab === 'specialist-dashboard' && (role === 'admin' || role === 'specialist') && (
-            <SpecialistDashboard lang={language} courses={courses} invoices={invoices} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} onAddInvoice={saveInvoiceToDB} />
-          )}
-          {activeTab === 'my-courses' && role === 'student' && (
-            <StudentDashboard 
-              lang={language} 
-              activeCourse={activeCourse} 
-              courses={courses}
-              invoices={effectiveInvoices} 
-              onSetActiveCourse={setActiveCourseId}
-            />
-          )}
+          {activeTab === 'showcase' && <Showcase lang={language} user={user} role={role} onPurchase={saveInvoiceToDB} onNavigate={setActiveTab} courses={courses} isLoading={isLoadingCourses} onSetActiveCourse={setActiveCourseId} />}
+          {activeTab === 'specialist-dashboard' && (role === 'admin' || role === 'specialist') && <SpecialistDashboard lang={language} courses={courses} invoices={invoices} isLoading={isLoadingCourses} onNavigate={setActiveTab} onSetActiveCourse={setActiveCourseId} onAddInvoice={saveInvoiceToDB} />}
+          {activeTab === 'my-courses' && role === 'student' && <StudentDashboard lang={language} activeCourse={activeCourse} courses={courses} invoices={invoices} onSetActiveCourse={setActiveCourseId} />}
           {activeTab === 'courses-admin' && (role === 'admin' || role === 'specialist') && (
-            <CourseEditor key={activeCourse.id} lang={language} course={activeCourse} onUpdate={handleCourseUpdate} onSave={handleCourseSave} />
+            isLoadingCourses ? <div className="flex-1 flex flex-col items-center justify-center"><Loader2 className="animate-spin text-purple-500" size={40} /><p className="mt-4 text-[10px] font-black uppercase text-gray-500 tracking-widest">Синхронізація контенту...</p></div> :
+            activeCourse ? <CourseEditor key={activeCourse.id} lang={language} course={activeCourse} courses={courses} onSetActiveCourse={setActiveCourseId} onUpdate={(updated) => setCourses(prev => prev.map(c => c.id === updated.id ? updated : c))} onSave={saveCourseToDB} /> : 
+            <div className="flex-1 flex flex-col items-center justify-center space-y-6 animate-in fade-in">
+               <div className="w-20 h-20 bg-purple-500/10 rounded-3xl flex items-center justify-center text-purple-500"><BookOpen size={40} /></div>
+               <div className="text-center"><p className="text-xl font-black text-white uppercase">Програм не знайдено</p><p className="text-gray-500 text-xs mt-1 uppercase font-bold tracking-widest">Ви можете створити першу програму прямо зараз</p></div>
+               <button onClick={handleCreateInitialCourse} className="px-8 py-4 bg-purple-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl hover:bg-purple-700 transition-all">Створити перший курс</button>
+            </div>
           )}
-          {activeTab === 'finance' && role !== 'guest' && (
-            <FinanceHub lang={language} invoices={invoices} setInvoices={() => {}} userRole={role} studentName={user?.displayName || 'Студент'} />
-          )}
+          {activeTab === 'finance' && role !== 'guest' && <FinanceHub lang={language} invoices={invoices} setInvoices={() => {}} userRole={role} studentName={user?.displayName} />}
           {activeTab === 'ai-lab' && role === 'admin' && <AILab lang={language} />}
-          {activeTab === 'live-assistant' && role !== 'guest' && <LiveAssistant lang={language} activeCourse={activeCourse} studentName={user?.displayName || 'Студент'} />}
+          {activeTab === 'live-assistant' && role !== 'guest' && <LiveAssistant lang={language} activeCourse={activeCourse} studentName={user?.displayName} />}
           {activeTab === 'guest-chat' && <GuestChat lang={language} courses={courses} onPurchase={saveInvoiceToDB} onNavigate={setActiveTab} />}
         </div>
       </main>

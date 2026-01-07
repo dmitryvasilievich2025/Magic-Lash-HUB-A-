@@ -13,17 +13,17 @@ interface Props {
   lang: Language;
   user?: any;
   role?: UserRole;
+  isLoading?: boolean;
   onSetActiveCourse?: (id: string) => void;
 }
 
 type CheckoutStep = 'form' | 'processing' | 'success';
 
-const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user, role, onSetActiveCourse }) => {
+const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user, role, isLoading = false, onSetActiveCourse }) => {
   const [selectedProduct, setSelectedProduct] = useState<Course | null>(null);
   const [detailsProduct, setDetailsProduct] = useState<Course | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('form');
   
-  // Дані форми
   const [firstName, setFirstName] = useState(user?.displayName?.split(' ')[0] || '');
   const [lastName, setLastName] = useState(user?.displayName?.split(' ')[1] || '');
   const [userEmail, setUserEmail] = useState(user?.email || '');
@@ -34,13 +34,11 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple' | 'google'>('card');
   const [progress, setProgress] = useState(0);
 
-  // Fallback image in case Firebase blocks access or URL is broken
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     e.currentTarget.src = 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=800';
-    e.currentTarget.onerror = null; // Prevent infinite loop
+    e.currentTarget.onerror = null; 
   };
 
-  // Filter courses based on role and publish status
   const visibleCourses = useMemo(() => {
     const isAdmin = role === 'admin' || role === 'specialist';
     return courses.filter(c => c.isPublished || isAdmin);
@@ -78,7 +76,9 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       courseDetails: 'Деталі Напрямку',
       syllabus: 'Програма курсу',
       startNow: 'Почати Навчання',
-      draft: 'ЧЕРНЕТКА'
+      draft: 'ЧЕРНЕТКА',
+      loading: 'Синхронізація з базою...',
+      noCourses: 'Наразі немає активних програм'
     },
     en: {
       badge: 'Choose your direction',
@@ -111,7 +111,9 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
       courseDetails: 'Program Details',
       syllabus: 'Syllabus',
       startNow: 'Start Learning',
-      draft: 'DRAFT'
+      draft: 'DRAFT',
+      loading: 'Syncing with database...',
+      noCourses: 'No active programs available'
     }
   }[lang]), [lang]);
 
@@ -173,8 +175,6 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
   };
 
   const handleDetailsClick = (product: Course) => {
-    // If admin clicks details, they might want to preview it as a student would see it, 
-    // OR go to edit. Let's show the modal for preview, and add an "Edit" button inside the modal for admins.
     setDetailsProduct(product);
   };
 
@@ -186,15 +186,12 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
     }
   };
 
-  // Video hover handlers
   const handleVideoHover = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = e.currentTarget.querySelector('video');
     if (video) {
       const playPromise = video.play();
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          // Video play suppressed (likely due to interaction policies), acceptable in this context
-        });
+        playPromise.catch(error => {});
       }
     }
   };
@@ -218,11 +215,8 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
           <p className="text-gray-400 max-w-2xl mx-auto font-medium">{t.subtitle}</p>
         </div>
 
-        {/* ARI PROMO BANNER */}
         <div className="bg-gradient-to-r from-[#1F232B] to-[#12141C] border border-[#2D333D] rounded-[2.5rem] p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group hover:border-purple-500/30 transition-all">
-           {/* Background Effects */}
            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[80px] rounded-full pointer-events-none group-hover:bg-purple-600/20 transition-all" />
-           
            <div className="flex items-center gap-6 relative z-10 text-left">
               <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-purple-900/30 shrink-0">
                  <Bot size={32} />
@@ -232,7 +226,6 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                  <p className="text-gray-400 text-sm font-medium max-w-md">{t.bannerSub}</p>
               </div>
            </div>
-
            <button 
               onClick={() => onNavigate('guest-chat')}
               className="px-8 py-4 bg-white text-black hover:bg-gray-100 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-3 active:scale-95 shrink-0 group/btn"
@@ -242,102 +235,96 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
            </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-          {visibleCourses.map((product) => (
-            <div key={product.id} className="bg-[#12141C] rounded-[3.5rem] overflow-hidden border border-[#1F232B] shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col h-full hover:-translate-y-2 duration-500 relative">
-              {/* Draft Badge for Admins */}
-              {!product.isPublished && (
-                 <div className="absolute top-4 left-4 z-30 px-3 py-1 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 backdrop-blur-md">
-                   <EyeOff size={10} /> {t.draft}
-                 </div>
-              )}
-              
-              <div 
-                className="h-64 relative overflow-hidden cursor-pointer group/media"
-                onMouseEnter={handleVideoHover}
-                onMouseLeave={handleVideoLeave}
-                onClick={() => handleDetailsClick(product)}
-              >
-                <img 
-                  src={product.image} 
-                  className={`w-full h-full object-cover group-hover/media:scale-110 transition-transform duration-1000 group-hover/media:opacity-100 relative z-0 ${product.isPublished ? 'opacity-60' : 'opacity-30 grayscale'}`} 
-                  alt={product.title} 
-                  onError={handleImageError}
-                />
-                
-                {product.previewVideo && (
-                  <video 
-                    src={product.previewVideo}
-                    muted
-                    loop
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover z-10 opacity-0 group-hover/media:opacity-100 transition-opacity duration-500 pointer-events-none"
-                  />
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-6 opacity-40">
+            <Loader2 size={48} className="animate-spin text-purple-500" />
+            <p className="text-xs font-black uppercase tracking-[0.3em]">{t.loading}</p>
+          </div>
+        ) : visibleCourses.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+            {visibleCourses.map((product) => (
+              <div key={product.id} className="bg-[#12141C] rounded-[3.5rem] overflow-hidden border border-[#1F232B] shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col h-full hover:-translate-y-2 duration-500 relative">
+                {!product.isPublished && (
+                   <div className="absolute top-4 left-4 z-30 px-3 py-1 bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 backdrop-blur-md">
+                     <EyeOff size={10} /> {t.draft}
+                   </div>
                 )}
-
-                <div className={`absolute top-6 right-6 z-20 bg-[#12141C]/90 backdrop-blur-md px-5 py-2.5 rounded-2xl font-black text-sm border border-white/10 ${product.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} shadow-xl`}>
-                  ${product.price}
+                
+                <div 
+                  className="h-64 relative overflow-hidden cursor-pointer group/media"
+                  onMouseEnter={handleVideoHover}
+                  onMouseLeave={handleVideoLeave}
+                  onClick={() => handleDetailsClick(product)}
+                >
+                  <img 
+                    src={product.image} 
+                    className={`w-full h-full object-cover group-hover/media:scale-110 transition-transform duration-1000 group-hover/media:opacity-100 relative z-0 ${product.isPublished ? 'opacity-60' : 'opacity-30 grayscale'}`} 
+                    alt={product.title} 
+                    onError={handleImageError}
+                  />
+                  {product.previewVideo && (
+                    <video 
+                      src={product.previewVideo}
+                      muted
+                      loop
+                      playsInline
+                      className="absolute inset-0 w-full h-full object-cover z-10 opacity-0 group-hover/media:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    />
+                  )}
+                  <div className={`absolute top-6 right-6 z-20 bg-[#12141C]/90 backdrop-blur-md px-5 py-2.5 rounded-2xl font-black text-sm border border-white/10 ${product.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} shadow-xl`}>
+                    ${product.price}
+                  </div>
+                </div>
+                <div className="p-8 space-y-4 flex flex-col flex-1">
+                  <h3 className={`text-xl font-black text-gray-100 transition-colors ${product.isExtensionCourse ? 'group-hover:text-purple-400' : 'group-hover:text-yellow-500'}`}>
+                    {product.title}
+                  </h3>
+                  <p className="text-gray-400 text-sm leading-relaxed line-clamp-2 font-medium flex-1">{product.description}</p>
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button onClick={() => handleDetailsClick(product)} className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
+                      {t.details}
+                    </button>
+                    <button 
+                      onClick={() => setSelectedProduct(product)}
+                      className={`py-4 ${product.isExtensionCourse ? 'bg-purple-600 shadow-purple-500/20 hover:bg-purple-700' : 'bg-yellow-600 shadow-yellow-500/20 hover:bg-yellow-700'} text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all flex items-center justify-center gap-2`}
+                    >
+                      <CreditCard size={14} /> {t.buy}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="p-8 space-y-4 flex flex-col flex-1">
-                <h3 className={`text-xl font-black text-gray-100 transition-colors ${product.isExtensionCourse ? 'group-hover:text-purple-400' : 'group-hover:text-yellow-500'}`}>
-                  {product.title}
-                </h3>
-                <p className="text-gray-400 text-sm leading-relaxed line-clamp-2 font-medium flex-1">{product.description}</p>
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <button onClick={() => handleDetailsClick(product)} className="py-4 bg-[#1F232B] text-gray-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#2D333D] transition-all">
-                    {t.details}
-                  </button>
-                  <button 
-                    onClick={() => setSelectedProduct(product)}
-                    className={`py-4 ${product.isExtensionCourse ? 'bg-purple-600 shadow-purple-500/20 hover:bg-purple-700' : 'bg-yellow-600 shadow-yellow-500/20 hover:bg-yellow-700'} text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg transition-all flex items-center justify-center gap-2`}
-                  >
-                    <CreditCard size={14} /> {t.buy}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 gap-6 opacity-40">
+            <ShoppingBag size={64} className="text-gray-700" />
+            <p className="text-xs font-black uppercase tracking-[0.3em]">{t.noCourses}</p>
+          </div>
+        )}
       </div>
 
-      {/* DETAILS MODAL */}
       {detailsProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-[#12141C] w-full max-w-5xl rounded-[3.5rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] animate-in zoom-in-95 duration-300 relative">
              <button onClick={() => setDetailsProduct(null)} className="absolute top-6 right-6 p-2 bg-black/50 hover:bg-white/10 rounded-full text-white z-20"><X size={24} /></button>
-             
-             {/* Main Image Section */}
              <div className="w-full md:w-2/5 relative h-64 md:h-auto bg-black">
-                <img 
-                  src={detailsProduct.image} 
-                  className="w-full h-full object-cover opacity-80" 
-                  alt={detailsProduct.title} 
-                  onError={handleImageError} 
-                />
+                <img src={detailsProduct.image} className="w-full h-full object-cover opacity-80" alt={detailsProduct.title} onError={handleImageError} />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#12141C] via-transparent to-transparent md:bg-gradient-to-r" />
-                
                 <div className="absolute bottom-8 left-8 right-8 text-left">
                    <div className={`inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-[#12141C]/80 backdrop-blur-sm ${detailsProduct.isExtensionCourse ? 'text-purple-400 border-purple-500/20' : 'text-yellow-400 border-yellow-500/20'}`}>
                       <Sparkles size={10} /> 
-                      {detailsProduct.isExtensionCourse 
-                        ? (lang === 'uk' ? 'Нарощування (Extension)' : 'Extension') 
-                        : (lang === 'uk' ? 'Ламінування (Lamination)' : 'Lamination')}
+                      {detailsProduct.isExtensionCourse ? 'Extension' : 'Lamination'}
                    </div>
                    <h2 className="text-3xl font-black text-white uppercase leading-tight mb-2 drop-shadow-lg">{detailsProduct.title}</h2>
                    <p className="text-gray-300 text-xs font-medium leading-relaxed drop-shadow-md">{detailsProduct.description}</p>
                 </div>
              </div>
-             
-             {/* Content Section */}
              <div className="flex-1 p-8 md:p-10 overflow-y-auto custom-scrollbar text-left flex flex-col">
                 <div className="flex-1 space-y-8">
                    <div>
                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center gap-2">
                          <BookOpen size={14} /> {t.syllabus}
                       </h3>
-                      
-                      {/* Structure Display */}
                       <div className="space-y-6">
                          {detailsProduct.sections?.map((section, idx) => (
                             <div key={section.id} className="animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: `${idx * 100}ms` }}>
@@ -360,7 +347,7 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                                         <div className="flex-1 min-w-0 py-1">
                                            <p className="text-[10px] font-bold text-white uppercase mb-1 truncate">{lesson.title}</p>
                                            <p className="text-[9px] text-gray-500 line-clamp-2 leading-relaxed">
-                                              {lesson.description || (lang === 'uk' ? 'Детальний розбір теми, теорія та практика.' : 'Detailed breakdown of the topic, theory and practice.')}
+                                              {lesson.description || 'Детальний розбір теми, теорія та практика.'}
                                            </p>
                                         </div>
                                      </div>
@@ -369,15 +356,9 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                                </div>
                             </div>
                          ))}
-                         {(!detailsProduct.sections || detailsProduct.sections.length === 0) && (
-                            <div className="p-8 text-center border border-dashed border-[#1F232B] rounded-3xl">
-                               <p className="text-gray-500 text-xs font-medium">Програма курсу формується.</p>
-                            </div>
-                         )}
                       </div>
                    </div>
                 </div>
-
                 <div className="pt-6 mt-6 flex items-center justify-between border-t border-[#1F232B] shrink-0">
                    <div>
                       <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Інвестиція</p>
@@ -386,22 +367,11 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                          <span className="text-[10px] font-bold text-gray-500">USD</span>
                       </div>
                    </div>
-                   
                    <div className="flex gap-3">
                       {(role === 'admin' || role === 'specialist') && (
-                         <button 
-                           onClick={(e) => handleEditCourse(e, detailsProduct.id)}
-                           className="px-6 py-4 bg-[#1F232B] text-gray-300 hover:text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
-                         >
-                            Редагувати
-                         </button>
+                         <button onClick={(e) => handleEditCourse(e, detailsProduct.id)} className="px-6 py-4 bg-[#1F232B] text-gray-300 hover:text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">Редагувати</button>
                       )}
-                      <button 
-                        onClick={() => { setDetailsProduct(null); setSelectedProduct(detailsProduct); }}
-                        className={`px-8 py-4 ${detailsProduct.isExtensionCourse ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-2`}
-                      >
-                        {t.startNow} <ArrowRight size={16} />
-                      </button>
+                      <button onClick={() => { setDetailsProduct(null); setSelectedProduct(detailsProduct); }} className={`px-8 py-4 ${detailsProduct.isExtensionCourse ? 'bg-purple-600 hover:bg-purple-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center gap-2`}>{t.startNow} <ArrowRight size={16} /></button>
                    </div>
                 </div>
              </div>
@@ -414,27 +384,23 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
           <div className="relative bg-[#12141C] w-full max-w-5xl rounded-[4rem] border border-[#1F232B] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
             <div className="w-full md:w-80 bg-[#0A0C10] p-10 border-r border-[#1F232B] hidden md:flex flex-col text-left">
               <div className="mb-8">
-                 <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-4">{lang === 'uk' ? 'Твій вибір' : 'Your choice'}</h4>
+                 <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em] mb-4">Твій вибір</h4>
                  <div className="relative rounded-3xl overflow-hidden aspect-square mb-6 border border-[#1F232B]">
                     <img src={selectedProduct.image} className="w-full h-full object-cover opacity-60" alt="" onError={handleImageError} />
                  </div>
                  <h3 className={`text-lg font-black mb-2 ${selectedProduct.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'}`}>{selectedProduct.title}</h3>
               </div>
             </div>
-
             <div className="flex-1 flex flex-col min-h-[600px] overflow-y-auto">
               {checkoutStep === 'form' && (
                 <>
                   <div className="p-10 border-b border-[#1F232B] flex items-center justify-between text-left shrink-0">
                     <div>
                       <h3 className="text-2xl font-black text-gray-100 uppercase tracking-tight">{t.checkoutTitle}</h3>
-                      <p className={`text-[10px] font-black uppercase ${selectedProduct.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} tracking-widest mt-1`}>
-                         {t.checkoutSub}
-                      </p>
+                      <p className={`text-[10px] font-black uppercase ${selectedProduct.isExtensionCourse ? 'text-purple-400' : 'text-yellow-500'} tracking-widest mt-1`}>{t.checkoutSub}</p>
                     </div>
                     <button onClick={closeCheckout} className="p-4 bg-[#0A0C10] hover:bg-[#1F232B] rounded-2xl text-gray-500 transition-colors"><X size={20} /></button>
                   </div>
-                  
                   <form onSubmit={handleInitiatePayment} className="p-10 space-y-8 flex-1 text-left">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
@@ -449,7 +415,6 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                         <input required className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 px-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="Ivanova" value={lastName} onChange={e => setLastName(e.target.value)} />
                       </div>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">Email</label>
@@ -466,33 +431,6 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                         </div>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.instagram}</label>
-                        <div className="relative">
-                          <Instagram size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                          <input className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-8 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none" placeholder="@username" value={userInstagram} onChange={e => setUserInstagram(e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.source}</label>
-                        <div className="relative">
-                          <Target size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600" />
-                          <select 
-                            className="w-full bg-[#0A0C10] border border-[#1F232B] rounded-3xl py-5 pl-14 pr-12 text-sm font-bold text-gray-100 focus:ring-1 ring-purple-500/50 outline-none appearance-none" 
-                            value={leadSource} 
-                            onChange={e => setLeadSource(e.target.value)}
-                          >
-                            {Object.entries(t.sourceOptions).map(([k, v]) => (
-                              <option key={k} value={k} className="bg-[#12141C]">{v}</option>
-                            ))}
-                          </select>
-                          <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="space-y-4">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-2">{t.payment}</label>
                       <div className="grid grid-cols-3 gap-4">
@@ -503,38 +441,28 @@ const Showcase: React.FC<Props> = ({ courses, onPurchase, onNavigate, lang, user
                         ))}
                       </div>
                     </div>
-
                     <div className="pt-6">
-                      <button type="submit" className={`w-full py-6 ${selectedProduct.isExtensionCourse ? 'bg-purple-600 shadow-purple-500/40 hover:bg-purple-700' : 'bg-yellow-600 shadow-yellow-500/40 hover:bg-yellow-700'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl transition-all flex items-center justify-center gap-4`}>
-                        {t.payButton} <ArrowRight size={18} />
-                      </button>
+                      <button type="submit" className={`w-full py-6 ${selectedProduct.isExtensionCourse ? 'bg-purple-600 shadow-purple-500/40 hover:bg-purple-700' : 'bg-yellow-600 shadow-yellow-500/40 hover:bg-yellow-700'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl transition-all flex items-center justify-center gap-4`}>{t.payButton} <ArrowRight size={18} /></button>
                     </div>
                   </form>
                 </>
               )}
-
               {checkoutStep === 'processing' && (
                 <div className="flex-1 flex flex-col items-center justify-center p-20 text-center space-y-12">
                    <div className="relative">
                       <Loader2 className={`w-24 h-24 animate-spin ${selectedProduct?.isExtensionCourse ? 'text-purple-500' : 'text-yellow-500'}`} />
                       <div className="absolute inset-0 flex items-center justify-center font-black text-xs">{progress}%</div>
                    </div>
-                   <div className="space-y-2">
-                      <h3 className="text-xl font-black text-white uppercase tracking-widest">Обробка транзакції...</h3>
-                      <p className="text-gray-500 text-xs uppercase tracking-tight">Будь ласка, не закривайте вікно</p>
-                   </div>
+                   <h3 className="text-xl font-black text-white uppercase tracking-widest">Обробка транзакції...</h3>
                 </div>
               )}
-
               {checkoutStep === 'success' && (
                 <div className="flex-1 flex flex-col items-center justify-center p-20 text-center space-y-12 animate-in zoom-in duration-500">
                   <div className="w-32 h-32 bg-green-500/10 border-2 border-green-500/30 rounded-[3.5rem] flex items-center justify-center text-green-400 mx-auto shadow-2xl">
                     <Trophy size={64} className="animate-bounce" />
                   </div>
                   <h3 className="text-4xl font-black text-gray-100 uppercase tracking-tight">{t.success}</h3>
-                  <button onClick={() => { onNavigate('my-courses'); closeCheckout(); }} className={`w-full py-6 ${selectedProduct?.isExtensionCourse ? 'bg-purple-600 shadow-purple-900/40' : 'bg-yellow-600 shadow-yellow-900/40'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] transition-all`}>
-                    {t.toProgram}
-                  </button>
+                  <button onClick={() => { onNavigate('my-courses'); closeCheckout(); }} className={`w-full py-6 ${selectedProduct?.isExtensionCourse ? 'bg-purple-600 shadow-purple-900/40' : 'bg-yellow-600 shadow-yellow-900/40'} text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] transition-all`}>{t.toProgram}</button>
                 </div>
               )}
             </div>

@@ -1,3 +1,4 @@
+
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -6,16 +7,17 @@ import {
   signOut, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
+  signInAnonymously,
   updateProfile,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
   type User 
 } from "firebase/auth";
-import { getFirestore, doc, updateDoc, getDoc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, initializeFirestore } from "firebase/firestore";
+import { getFirestore, doc, updateDoc, getDoc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, initializeFirestore, deleteDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { Course } from "../types";
+import { Course, Section, Invoice } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDWcDmZizbykQ-rRue9nV6Vi8XlZyRRdXk",
@@ -27,33 +29,20 @@ const firebaseConfig = {
   measurementId: "G-W6EVJDPMQ0"
 };
 
-// Створюємо єдиний екземпляр додатку
 const app = initializeApp(firebaseConfig);
-
-// Ініціалізуємо сервіси, передаючи app явно для усунення конфліктів реєстрації
 export const auth = getAuth(app);
-// Use initializeFirestore with experimentalForceLongPolling to avoid timeout issues in some environments
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
 export const storage = getStorage(app);
-
-// Безпечна ініціалізація аналітики
 export const analytics = typeof window !== 'undefined' ? isSupported().then(yes => yes ? getAnalytics(app) : null) : null;
 
 const googleProvider = new GoogleAuthProvider();
 
-// СПИСОК СУПЕР-АДМІНІВ (HARDCODED)
-// Додавайте сюди email-и тих, хто має мати повний доступ одразу після реєстрації
 const ADMIN_EMAILS = [
   'dmitry.vasilievich@gmail.com'
-  // 'another.admin@gmail.com',
 ];
 
-/**
- * Встановлює тип збереження сесії
- * @param remember - true для browserLocalPersistence (зберігати після закриття), false для browserSessionPersistence
- */
 export const setAuthPersistence = async (remember: boolean) => {
   try {
     const mode = remember ? browserLocalPersistence : browserSessionPersistence;
@@ -63,9 +52,6 @@ export const setAuthPersistence = async (remember: boolean) => {
   }
 };
 
-/**
- * Синхронізує дані користувача між Auth та базою Firestore.
- */
 export const syncUserProfile = async (user: User | null) => {
   if (!user) return null;
   
@@ -76,25 +62,23 @@ export const syncUserProfile = async (user: User | null) => {
     userSnap = await getDoc(userRef);
   } catch (e) {
     console.error("Помилка доступу до профілю:", e);
-    // Якщо не вдалося прочитати профіль (наприклад, немає інтернету),
-    // повертаємо мінімальні дані з Auth
     return {
       uid: user.uid,
       email: user.email,
-      role: 'student' // Fallback role
+      role: user.isAnonymous ? 'admin' : 'student' 
     };
   }
 
-  // Перевіряємо, чи є email у списку супер-адмінів
   const isSuperAdmin = user.email ? ADMIN_EMAILS.includes(user.email) : false;
-  
+  const isAnonymousAdmin = user.isAnonymous;
+
   if (!userSnap.exists()) {
     const userData = {
       uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
+      email: user.email || 'anonymous',
+      displayName: user.isAnonymous ? "Тимчасовий Адмін" : user.displayName,
       photoURL: user.photoURL,
-      role: isSuperAdmin ? 'admin' : 'student',
+      role: (isSuperAdmin || isAnonymousAdmin) ? 'admin' : 'student',
       createdAt: serverTimestamp(),
       lastLogin: serverTimestamp()
     };
@@ -107,36 +91,29 @@ export const syncUserProfile = async (user: User | null) => {
   } else {
     const existingData = userSnap.data();
     const updates: any = { 
-      lastLogin: serverTimestamp(),
-      displayName: user.displayName // Update name if changed
+      lastLogin: serverTimestamp()
     };
     
-    if (user.photoURL) {
-        updates.photoURL = user.photoURL;
-    }
+    if (user.displayName) updates.displayName = user.displayName;
+    if (user.photoURL) updates.photoURL = user.photoURL;
     
-    // Якщо користувач у списку ADMIN_EMAILS, примусово ставимо роль admin, навіть якщо в базі інше
-    if (isSuperAdmin && existingData.role !== 'admin') {
+    if ((isSuperAdmin || isAnonymousAdmin) && existingData.role !== 'admin') {
       updates.role = 'admin';
     }
     
     try {
         await updateDoc(userRef, updates);
     } catch (e) {
-        console.warn("Could not update last login", e);
+        console.warn("Could not update user", e);
     }
     return { ...existingData, ...updates };
   }
 };
 
-// --- EMAIL / PASSWORD AUTH METHODS ---
-
 export const registerWithEmail = async (email: string, password: string, name: string, remember: boolean = true) => {
   await setAuthPersistence(remember);
   const result = await createUserWithEmailAndPassword(auth, email, password);
-  // Оновлюємо профіль користувача, додаючи Ім'я
   await updateProfile(result.user, { displayName: name });
-  // Синхронізуємо з Firestore
   const profile = await syncUserProfile(result.user);
   return { user: result.user, profile };
 };
@@ -144,6 +121,13 @@ export const registerWithEmail = async (email: string, password: string, name: s
 export const loginWithEmail = async (email: string, password: string, remember: boolean = true) => {
   await setAuthPersistence(remember);
   const result = await signInWithEmailAndPassword(auth, email, password);
+  const profile = await syncUserProfile(result.user);
+  return { user: result.user, profile };
+};
+
+export const loginAnonymously = async () => {
+  await setAuthPersistence(false);
+  const result = await signInAnonymously(auth);
   const profile = await syncUserProfile(result.user);
   return { user: result.user, profile };
 };
@@ -166,8 +150,6 @@ export const loginWithGoogle = async (remember: boolean = true) => {
 
 export const logout = () => signOut(auth);
 
-// --- STORAGE ---
-
 export const uploadFile = async (file: File | Blob, path: string): Promise<string> => {
   try {
     const storageRef = ref(storage, path);
@@ -180,103 +162,80 @@ export const uploadFile = async (file: File | Blob, path: string): Promise<strin
   }
 };
 
-export const saveInvoiceToDB = async (invoice: any) => {
+const cleanForFirestore = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(cleanForFirestore);
+  } else if (obj !== null && typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        result[key] = cleanForFirestore(value);
+      }
+    }
+    return result;
+  }
+  return obj;
+};
+
+export const saveCourseToDB = async (course: Course) => {
   try {
-    const docRef = await addDoc(collection(db, "invoices"), {
-      ...invoice,
-      createdAt: serverTimestamp(),
+    if (!course.id) {
+       throw new Error("Course ID is missing");
+    }
+    const dataToSave = cleanForFirestore({
+      ...course,
       updatedAt: serverTimestamp()
     });
-    return docRef.id;
-  } catch (e) {
-    console.error("Помилка збереження інвойсу:", e);
+    const courseRef = doc(db, "courses", course.id);
+    await setDoc(courseRef, dataToSave, { merge: true });
+    return true;
+  } catch (e: any) {
+    console.error("Firestore Error:", e);
     throw e;
   }
 };
 
-export const updateInvoiceInDB = async (invoiceId: string, updates: any) => {
-  const docRef = doc(db, "invoices", invoiceId);
-  await updateDoc(docRef, {
-    ...updates,
-    updatedAt: serverTimestamp()
-  });
+export const deleteCourseFromDB = async (courseId: string) => {
+  try {
+    const courseRef = doc(db, "courses", courseId);
+    await deleteDoc(courseRef);
+    return true;
+  } catch (e: any) {
+    console.error("Error deleting course:", e);
+    throw e;
+  }
 };
 
-// --- COURSE MANAGEMENT ---
-
-export const saveCourseToDB = async (course: Course) => {
+export const saveInvoiceToDB = async (invoice: Partial<Invoice>) => {
   try {
-    // Manually construct clean object to avoid circular refs from UI state pollution
-    // This fixes "Converting circular structure to JSON" errors by ensuring only data is saved.
-    const cleanCourse = {
-        id: course.id,
-        title: course.title || '',
-        description: course.description || '',
-        price: course.price || 0,
-        currency: course.currency || 'USD',
-        image: course.image || '',
-        previewVideo: course.previewVideo || '',
-        isExtensionCourse: course.isExtensionCourse || false,
-        isPublished: course.isPublished ?? true,
-        studentCount: course.studentCount || 0,
-        sections: course.sections?.map(s => ({
-            id: s.id,
-            title: s.title,
-            description: s.description || '',
-            media: s.media || '',         // Added media for Section
-            thumbnail: s.thumbnail || '', // Added thumbnail for Section
-            lessons: s.lessons?.map(l => ({
-                id: l.id,
-                title: l.title,
-                description: l.description || '',
-                media: l.media || '',
-                thumbnail: l.thumbnail || '',
-                aiPrompt: l.aiPrompt || '',
-                steps: l.steps?.map(st => ({
-                    id: st.id,
-                    title: st.title,
-                    type: st.type,
-                    description: st.description || '',
-                    aiPrompt: st.aiPrompt || '',
-                    videoPrompt: st.videoPrompt || '',         // Added videoPrompt
-                    interactionPrompt: st.interactionPrompt || '', // Added interactionPrompt
-                    media: st.media || '',
-                    thumbnail: st.thumbnail || '', // Added thumbnail for Step
-                    quizQuestions: st.quizQuestions?.map(q => ({
-                      id: q.id,
-                      question: q.question,
-                      options: q.options || [],
-                      correctOptionIndex: q.correctOptionIndex
-                    })) || []
-                })) || []
-            })) || []
-        })) || [],
-        settings: {
-          category: course.settings?.category || '',
-          pace: course.settings?.pace || 'self-paced',
-          timeLimitDays: course.settings?.timeLimitDays ?? null,
-          accessMode: course.settings?.accessMode || 'linear',
-          requireVideoWatch: course.settings?.requireVideoWatch || false,
-          autoPlayNext: course.settings?.autoPlayNext || false,
-          visibility: course.settings?.visibility || 'public',
-          participationLimit: course.settings?.participationLimit ?? null,
-        },
-        team: course.team?.map(m => ({
-          id: m.id,
-          name: m.name,
-          role: m.role,
-          joinedAt: m.joinedAt
-        })) || []
-    };
-
-    const courseRef = doc(db, "courses", course.id);
-    await setDoc(courseRef, {
-      ...cleanCourse,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    return true;
+    const invoicesRef = collection(db, "invoices");
+    if (invoice.id) {
+      const invRef = doc(db, "invoices", invoice.id);
+      await setDoc(invRef, { ...invoice, updatedAt: serverTimestamp() }, { merge: true });
+      return invoice.id;
+    } else {
+      const docRef = await addDoc(invoicesRef, {
+        ...invoice,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    }
   } catch (e) {
-    console.error("Error saving course:", e);
+    console.error("Error saving invoice:", e);
+    throw e;
+  }
+};
+
+export const updateInvoiceInDB = async (id: string, updates: Partial<Invoice>) => {
+  try {
+    const invRef = doc(db, "invoices", id);
+    await updateDoc(invRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Error updating invoice:", e);
     throw e;
   }
 };
@@ -285,7 +244,8 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void) => {
   const q = collection(db, "courses");
   return onSnapshot(q, (snapshot) => {
     const courses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course));
-    // Sort courses might be needed or handled in UI
     callback(courses);
+  }, (error) => {
+    console.error("Subscription Error:", error);
   });
 };

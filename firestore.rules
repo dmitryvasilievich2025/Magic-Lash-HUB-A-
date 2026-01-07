@@ -3,72 +3,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ПРЕДИКАТИ (Функції перевірки)
-    
-    // Перевірка, чи користувач авторизований
+    // Перевірка авторизації
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Перевірка на Адміністратора:
-    // 1. Або це Супер-Адмін (hardcoded email)
-    // 2. Або у користувача в базі даних прописана роль 'admin'
-    function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.email == 'dmitry.vasilievich@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
-    }
-
-    // Перевірка, чи має користувач роль Спеціаліста (співробітника) у базі
-    function isSpecialist() {
-      return isAuthenticated() && (
-        isAdmin() || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'specialist'
-      );
-    }
-
-    // --- КОЛЕКЦІЇ ---
-
-    // Користувачі
+    // Правила для користувачів
     match /users/{userId} {
-      // Кожен бачить свій профіль, Адмін бачить усіх
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isSpecialist());
-      // Створювати/редагувати свій профіль може сам користувач або адмін
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Інвойси та Фінанси
-    match /invoices/{invoiceId} {
-      // Гість: не бачить нічого
-      // Студент: бачить лише свої інвойси (фільтрація за studentId)
-      // Співробітник/Адмін: бачать повну історію оплат HUB
-      allow read: if isAdmin() || isSpecialist() || (isAuthenticated() && resource.data.studentId == request.auth.uid);
-      
-      // Створювати інвойс може будь-який авторизований користувач (процес покупки на вітрині)
-      allow create: if isAuthenticated();
-      
-      // Редагувати або видаляти фінансові записи може тільки персонал
-      allow update, delete: if isAdmin() || isSpecialist();
-    }
-
-    // Курси та Контент
+    // Правила для курсів - дозволяємо читання всім, запис усім авторизованим (Адмінам/Спеціалістам)
     match /courses/{courseId} {
-      // Гість: може переглядати вітрину (список курсів)
-      allow read: if true; 
-      
-      // Редагувати структуру навчання може тільки Адмін або Спеціаліст (Співробітник)
-      allow write: if isAdmin() || isSpecialist();
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
-    // Логи та Аналітика (якщо будуть)
-    match /logs/{logId} {
-      allow read, write: if isAdmin();
+    // Правила для інвойсів
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
-    // За замовчуванням забороняємо все інше, що не описано
+    // Загальні правила для всього іншого
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
   }
 }

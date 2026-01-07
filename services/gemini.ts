@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { AuditResult, Lesson, Course, Section } from '../types';
 
@@ -141,6 +142,7 @@ export const generateCourseStructure = async (rawText: string): Promise<Section[
                             type: { type: Type.STRING, enum: ["lecture", "quiz", "interaction"] },
                             media: { type: Type.STRING },
                             aiPrompt: { type: Type.STRING },
+                            ragQuery: { type: Type.STRING },
                             // Legacy quiz fields if single
                             question: { type: Type.STRING },
                             correctAnswer: { type: Type.STRING },
@@ -271,8 +273,9 @@ export const generateSmartContent = async (
 
 /**
  * Генерація відео (Veo 3.1)
+ * Повертає Blob для подальшого завантаження або відображення.
  */
-export const generateEducationalVideo = async (prompt: string, imageBase64?: string) => {
+export const generateEducationalVideo = async (prompt: string, imageBase64?: string): Promise<Blob> => {
   const ai = getAI();
   let operation = await ai.models.generateVideos({
     model: 'veo-3.1-fast-generate-preview',
@@ -285,8 +288,8 @@ export const generateEducationalVideo = async (prompt: string, imageBase64?: str
     }),
     config: {
       numberOfVideos: 1,
-      aspectRatio: '16:9'
-      // resolution removed as it's not supported in current API version for this model
+      aspectRatio: '16:9',
+      resolution: '1080p'
     }
   });
 
@@ -299,6 +302,5 @@ export const generateEducationalVideo = async (prompt: string, imageBase64?: str
   if (!downloadLink) throw new Error("Video generation failed: No download link provided");
 
   const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
+  return await response.blob();
 };

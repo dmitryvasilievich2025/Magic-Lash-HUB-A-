@@ -102,7 +102,8 @@ const FinanceHub: React.FC<Props> = ({ invoices, userRole = 'admin', studentName
     e.preventDefault();
     if (!invoiceForm.student || !invoiceForm.total) return;
     
-    const newInv = {
+    // Fix: Explicitly typing newInv to Partial<Invoice> to ensure 'status' is treated as a union type, not a broad string.
+    const newInv: Partial<Invoice> = {
       student: invoiceForm.student,
       instructorName: invoiceForm.instructorName,
       course: invoiceForm.course,

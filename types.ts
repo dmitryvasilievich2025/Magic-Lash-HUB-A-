@@ -22,6 +22,7 @@ export interface Step {
   ragQuery?: string;
   media?: string;       // Video or Photo
   thumbnail?: string;   // Cover image
+  tags?: string[];      // New field for tags
   
   // Legacy single question fields (optional compatibility)
   question?: string;
